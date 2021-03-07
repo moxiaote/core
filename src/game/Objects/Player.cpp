@@ -14429,6 +14429,30 @@ bool Player::HasQuestForItem(uint32 itemid) const
     return false;
 }
 
+uint32 Player::Getjifen() const
+{
+    QueryResult * result;
+    result = LoginDatabase.PQuery("SELECT `jf` FROM `account` WHERE `id` = '%u'", GetSession()->GetAccountId());
+    if (result)
+    {
+        uint32 a = result->Fetch()[0].GetUInt32();;
+        delete result;
+        return a;
+    }
+    delete result;
+    return 0;
+}
+
+void Player::Modifyjifen(int32 d)
+{
+    int32 jfuser = Getjifen();
+    int32 Newjifen = jfuser + d;
+    if (Newjifen < 0)
+        LoginDatabase.PExecute("UPDATE `account` SET `jf` = '0' WHERE `id` = '%u'", GetSession()->GetAccountId());
+    else
+        LoginDatabase.PExecute("UPDATE `account` SET `jf` = '%u' WHERE `id` = '%u'", Newjifen, GetSession()->GetAccountId());
+}
+
 // Used for quests having some event (explore, escort, "external event") as quest objective.
 void Player::SendQuestCompleteEvent(uint32 quest_id) const
 {
