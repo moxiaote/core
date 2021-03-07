@@ -1762,6 +1762,7 @@ class Player final: public Unit
         void CheckAreaExploreAndOutdoor(void);
     public:
         void AddToWorld() override;
+        time_t m_getLastMbTime;
         void RemoveFromWorld() override;
 
         /* Switch from instanceId of same map.

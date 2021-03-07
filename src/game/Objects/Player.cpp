@@ -82,6 +82,7 @@
 #include "GameEventMgr.h"
 #include "world/world_event_naxxramas.h"
 #include "world/world_event_wareffort.h"
+#include "WorldSession.h"
 
 #define ZONE_UPDATE_INTERVAL (1*IN_MILLISECONDS)
 
@@ -432,6 +433,7 @@ Player::Player(WorldSession* session) : Unit(),
     m_session = session;
 
     m_ExtraFlags = 0;
+    m_getLastMbTime = time(NULL);
     if (GetSession()->GetSecurity() > SEC_PLAYER)
     {
         m_currentTicketCounter = sTicketMgr->GetLastTicketId();
@@ -1259,6 +1261,30 @@ void Player::Update(uint32 update_diff, uint32 p_time)
     SetCanDelayTeleport(false);
 
     time_t now = time(nullptr);
+
+    if (sConfig.GetBoolDefault("Customsys.OnlineGift", false) && IsAlive())
+    {
+        if (now >= m_getLastMbTime + uint32(sConfig.GetIntDefault("Customsys.OnlineGift.Time", 15)))
+        {
+            uint32 itemid = sConfig.GetIntDefault("Customsys.OnlineGift.Itemid", 40001);
+            uint32 itemcount = sConfig.GetIntDefault("Customsys.OnlineGift.Itemcount", 1);
+            uint32 jifen = sConfig.GetIntDefault("Customsys.OnlineGift.Jifen", 0);
+            uint32 money = sConfig.GetIntDefault("Customsys.OnlineGift.Money", 0);
+            ItemPrototype const* pProto = sObjectMgr.GetItemPrototype(itemid);
+            m_session->GetPlayer()->Modifyjifen((int32)jifen);
+            m_session->GetPlayer()->ModifyMoney((int32)money);
+            if (pProto && itemcount > 0)
+            {
+                sWorld.RewardItemid(this, itemid, itemcount);
+                GetSession()->SendNotification(20003, pProto->Name1, itemcount, jifen, money / 10000);
+            }
+            else
+            {
+                GetSession()->SendNotification(20004, jifen, money / 10000);
+            }
+            m_getLastMbTime = now;
+        }
+    }
 
     UpdatePvPFlagTimer(update_diff);
 
