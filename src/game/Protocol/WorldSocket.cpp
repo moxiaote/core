@@ -234,7 +234,7 @@ int WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
     os = fields[9].GetString();
     uint32 accFlags = fields[10].GetUInt32();
     jf = fields[11].GetUInt32();
-    bool isBanned = fields[11].GetBool();
+    bool isBanned = fields[12].GetBool();
     delete result;
 
     
