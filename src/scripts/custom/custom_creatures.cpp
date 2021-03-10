@@ -1195,12 +1195,12 @@ bool OnGossipSelect_RewardShopNPC(Player* player, Creature* creature, uint32 sen
     case 6:
         CharacterDatabase.PQuery("INSERT INTO `reward_shop` (`action`, `action_data`, `quantity`, `code`, `status`, `PlayerGUID`, `PlayerIP`, `CreatedBy`) VALUES(1, 0, 0, '%s', 0, 0, '0', '%s')", randomcode.str().c_str(), CreatedBy.c_str());
         ChatHandler(player->GetSession()).PSendSysMessage("已成功创建您的卡密 %s", randomcode.str().c_str());
-        player->SEND_GOSSIP_MENU(player->GetGossipTextId(creature), creature->GetGUID());
+        player->CLOSE_GOSSIP_MENU();
         break;
     case 7:
         CharacterDatabase.PQuery("INSERT INTO `reward_shop` (`action`, `action_data`, `quantity`, `code`, `status`, `PlayerGUID`, `PlayerIP`, `CreatedBy`) VALUES(3, 0, 0, '%s', 0, 0, '0', '%s')", randomcode.str().c_str(), CreatedBy.c_str());
         ChatHandler(player->GetSession()).PSendSysMessage("已成功创建您的卡密 %s", randomcode.str().c_str());
-        player->SEND_GOSSIP_MENU(player->GetGossipTextId(creature), creature->GetGUID());
+        player->CLOSE_GOSSIP_MENU();
         break;
     }
     return true;
@@ -1227,7 +1227,7 @@ bool OnGossipSelectCode_RewardShopNPC(Player* player, Creature* creature, uint32
         player->PlayDirectSound(9638); // No
         creature->MonsterWhisper(messageCode.str().c_str(), player);
         creature->HandleEmoteCommand(EMOTE_ONESHOT_QUESTION);
-        player->SEND_GOSSIP_MENU(player->GetGossipTextId(creature), creature->GetGUID());
+        player->CLOSE_GOSSIP_MENU();
         return false;
     }
 
@@ -1253,7 +1253,7 @@ bool OnGossipSelectCode_RewardShopNPC(Player* player, Creature* creature, uint32
             player->PlayDirectSound(9638); // No
             creature->MonsterWhisper(messageCode.str().c_str(), player);
             creature->HandleEmoteCommand(EMOTE_ONESHOT_QUESTION);
-            player->SEND_GOSSIP_MENU(player->GetGossipTextId(creature), creature->GetGUID());
+            player->CLOSE_GOSSIP_MENU();
             return false;
         }
         switch (action)
@@ -1266,22 +1266,25 @@ bool OnGossipSelectCode_RewardShopNPC(Player* player, Creature* creature, uint32
             if (count == 0 || dest.empty())
             {
                 ChatHandler(player->GetSession()).PSendSysMessage("兑换失败,不能携带更多此类物品或者您的背包空间不足。");
-                //ChatHandler(player->GetSession()).PSendSysMessage(true);
+                player->CLOSE_GOSSIP_MENU();
                 return false;
             }
 
             if (count > 0 && action_data)
             {
                 player->AddItem(action_data, quantity);
+                player->CLOSE_GOSSIP_MENU();
             }
             break;
         case 2: /* Gold */
             player->ModifyMoney(action_data * 10000);
             ChatHandler(player->GetSession()).PSendSysMessage("兑换系统: 成功添加 [%u G币]", action_data);
+            player->CLOSE_GOSSIP_MENU();
             break;
         case 3: /* Name Change */
             player->SetAtLoginFlag(AT_LOGIN_RENAME);
             ChatHandler(player->GetSession()).PSendSysMessage("兑换系统: 请注销名称变更。");
+            player->CLOSE_GOSSIP_MENU();
             break;
         }
 
