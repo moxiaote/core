@@ -697,6 +697,11 @@ void Spell::FillTargetMap()
 
 SpellCastResult Spell::CheckScriptTargeting(SpellEffectIndex effIndex, uint32 chainTargets, float radius, uint32 targetMode, UnitList& tempUnitList)
 {
+    if (m_spellInfo->Id == 24934)
+    {
+        return SPELL_CAST_OK;
+    }
+
     SpellScriptTargetBounds bounds = sSpellMgr.GetSpellScriptTargetBounds(m_spellInfo->Id);
 
     if (bounds.first == bounds.second)
@@ -1562,6 +1567,18 @@ void Spell::DoAllEffectOnTarget(TargetInfo *target)
 
         if (pRealUnitCaster)
         {
+            // Purification
+            if (m_spellInfo->SpellFamilyName == SPELLFAMILY_PALADIN)
+            {
+                if (m_spellInfo->IsFitToFamilyMask<CF_PALADIN_FLASH_OF_LIGHT1>() || m_spellInfo->IsFitToFamilyMask<CF_PALADIN_HOLY_LIGHT1>() || m_spellInfo->IsFitToFamilyMask<CF_PALADIN_FLASH_OF_LIGHT2>() || m_spellInfo->IsFitToFamilyMask<CF_PALADIN_HOLY_LIGHT2>())
+                {
+                    if (pRealUnitCaster->HasAura(34199))
+                    {
+                        unitTarget->CastCustomSpell(unitTarget, 34200, static_cast<uint32>((addhealth + gain) * 0.25f), {}, {}, true);
+                    }
+                }
+            }
+
             float classThreatModifier = pRealUnitCaster->GetClass() == CLASS_PALADIN ? 0.25f : 0.5f;
             unitTarget->GetHostileRefManager().threatAssist(pRealUnitCaster, float(gain) * classThreatModifier * sSpellMgr.GetSpellThreatMultiplier(m_spellInfo), m_spellInfo);
         }
@@ -5608,6 +5625,10 @@ void Spell::TakeAmmo()
     if (!pCaster)
         return;
 
+    // Hurter - Butterfly : take no ammo
+    if (pCaster->HasAura(34132))
+        return;
+
     // Some ranged attacks dont take any ammo
     switch (m_spellInfo->Id)
     {
@@ -6306,6 +6327,11 @@ SpellCastResult Spell::CheckCast(bool strict)
                     if (m_casterUnit && m_casterUnit->HasAura(18172))
                         return SPELL_FAILED_ITEM_NOT_READY;
                 }
+                else if (m_spellInfo->Id == 21050) // Melodious Rapture
+                {
+                    if (!m_targets.getUnitTarget() || m_targets.getUnitTarget()->GetEntry() != 13016)
+                        return SPELL_FAILED_BAD_TARGETS;
+                }
                 else if (m_spellInfo->IsFitToFamilyMask<CF_WARLOCK_LIFE_TAP>() && m_casterUnit)
                 {
                     float cost = m_currentBasePoints[EFFECT_INDEX_0];
@@ -6342,8 +6368,10 @@ SpellCastResult Spell::CheckCast(bool strict)
                     auto const& mPeriodic = m_targets.getUnitTarget()->GetAurasByType(SPELL_AURA_PERIODIC_DAMAGE);
                     for (const auto periodicDamageAura : mPeriodic)
                     {
-                        // Immolate
-                        if (periodicDamageAura->GetSpellProto()->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_IMMOLATE>() &&
+                        // Immolate/Curse of Agony/Corruption
+                        if ((periodicDamageAura->GetSpellProto()->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_IMMOLATE>() ||
+                            periodicDamageAura->GetSpellProto()->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_CURSE_OF_AGONY>() ||
+                            periodicDamageAura->GetSpellProto()->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_CORRUPTION>()) &&
                             periodicDamageAura->GetCasterGuid() == m_caster->GetObjectGuid())
                         {
                             found = true;
@@ -6951,11 +6979,18 @@ SpellCastResult Spell::CheckCast(bool strict)
                 if (!m_caster->IsPlayer())
                     return SPELL_FAILED_BAD_TARGETS;
 
+                // creature 200017 can not be possessed
+                if (m_targets.getUnitTarget()->GetEntry() == 200017)
+                    return SPELL_FAILED_BAD_TARGETS;
                 // no break
             }
             case SPELL_AURA_MOD_CHARM:
             {
                 if (!m_casterUnit)
+                    return SPELL_FAILED_BAD_TARGETS;
+
+                // creature 200017 can not be charmed
+                if (m_targets.getUnitTarget()->GetEntry() == 200017)
                     return SPELL_FAILED_BAD_TARGETS;
 
                 if (!IsScriptTarget(m_spellInfo->EffectImplicitTargetA[i]))

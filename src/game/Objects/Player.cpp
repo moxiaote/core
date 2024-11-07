@@ -1113,7 +1113,7 @@ void Player::SatisfyItemRequirements(ItemPrototype const* pItem)
 
 uint32 Player::EnvironmentalDamage(EnvironmentalDamageType type, uint32 damage)
 {
-    if (!IsAlive() || IsGameMaster())
+    if (!IsAlive() || IsGameMaster() || (IsBot() && sWorld.getConfig(CONFIG_BOT_ENVIRONMENTAL_DAMAGE) == 0))
         return 0;
 
     // Absorb, resist some environmental damage type
@@ -1438,8 +1438,11 @@ void Player::OnMirrorTimerExpirationPulse(MirrorTimer::Type timer)
             if (IsInMagma())
                 EnvironmentalDamage(DAMAGE_LAVA, urand(sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MIN), sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MAX)));
             // FIXME: Need to skip slime damage in Undercity, maybe someone can find better way to handle environmental damage
-            //if (IsInSlime() && m_zoneUpdateId != 1497)
+            //if (IsInSlime() && m_zoneUpdateId != 1497 && m_zoneUpdateId != 3456)
             //    EnvironmentalDamage(DAMAGE_SLIME, urand(sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MIN), sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MAX)));
+            // NAXX Slime 34130
+            //if (IsInSlime() && m_zoneUpdateId == 3456)
+            //    CastSpell(this, 34130, true);
             break;
         case MirrorTimer::FEIGNDEATH:
             // Vanilla: kill player on feigning death for too long
@@ -1558,7 +1561,11 @@ void Player::Update(uint32 update_diff, uint32 p_time)
 
     // Update items that have just a limited lifetime
     if (now > m_lastTick)
+    {
         UpdateItemDuration(uint32(now - m_lastTick));
+        // Modification - trading in loot for two hours.
+        UpdateItemsInBags(uint32(now - m_lastTick));
+    }
 
     if (m_cameraUpdateTimer)
     {
@@ -2685,12 +2692,24 @@ void Player::RewardRage(uint32 damage, bool attacker)
     }
     else
     {
+        //JieFuFuTi(34001) taken damage
+        if (HasAura(34001))
+        {
+            uint32 jiefufuti = sWorld.getConfig(CONFIG_UINT32_BUFF_JIEFUFUTI);
+            if (jiefufuti > 99)
+                jiefufuti = 99;
+            if (GetLevel() < 60 && GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+                jiefufuti = 0;
+            damage *= dither((100.0f / (100.0f - jiefufuti)));
+        }
         addRage = damage / rageconversion * 2.5f;
 
         // Berserker Rage effect
         if (HasAura(18499, EFFECT_INDEX_0))
             addRage *= 1.3f;
     }
+    // 34142 34143 effect
+    addRage *= (HasAura_34142_34143_total() * 0.01f + 1.0f);
 
     addRage *= sWorld.getConfig(CONFIG_FLOAT_RATE_POWER_RAGE_INCOME);
 
@@ -2772,6 +2791,8 @@ void Player::Regenerate(Powers power)
             }
             else
                 addvalue = m_modManaRegen * ManaIncreaseRate * 2.00f;
+            // 34155 34156 effect
+            addvalue *= (HasAura_34155_34156_total() * 0.01f + 1.0f);
         }
         break;
         case POWER_RAGE:                                    // Regenerate rage
@@ -2784,6 +2805,8 @@ void Player::Regenerate(Powers power)
         {
             float EnergyRate = sWorld.getConfig(CONFIG_FLOAT_RATE_POWER_ENERGY);
             addvalue = 20 * EnergyRate;
+            // 34140 34141 effect
+            addvalue *= (HasAura_34140_34141_total() * 0.01f + 1.0f);
             break;
         }
         case POWER_FOCUS:
@@ -4552,6 +4575,8 @@ uint32 Player::GetResetTalentsCost() const
 
 bool Player::ResetTalents(bool no_cost)
 {
+    if(HasItemCount(26001, 1))
+        no_cost = true;
     // not need after this call
     if (HasAtLoginFlag(AT_LOGIN_RESET_TALENTS))
         RemoveAtLoginFlag(AT_LOGIN_RESET_TALENTS, true);
@@ -5098,6 +5123,13 @@ void Player::ResurrectPlayer(float restore_percent, bool applySickness)
     // Interrupt resurrect spells
     InterruptSpellsCastedOnMe(false, true);
 
+    // Hardcore Challenger Can Not Resurrect
+    if (GetLevel()<60 && GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+    {
+        GetSession()->SendNotification("Hardcore Challenger Can Not Resurrect.");
+        return;
+    }
+
     SetDeathState(ALIVE);
 
     if (GetRace() == RACE_NIGHTELF)
@@ -5326,7 +5358,8 @@ void Player::DurabilityPointsLossAll(int32 points, bool inventory)
 
 void Player::DurabilityPointsLoss(Item* item, int32 points)
 {
-    if (!sWorld.getConfig(CONFIG_BOOL_DURABILITY_LOSS_ENABLE))
+    //bot do not loss durabilitypoints
+    if ((IsBot() && sWorld.getConfig(CONFIG_BOT_DURABILITY_POINTS_LOSS) == 0) || !sWorld.getConfig(CONFIG_BOOL_DURABILITY_LOSS_ENABLE))
         return;
 
     int32 pMaxDurability = item->GetUInt32Value(ITEM_FIELD_MAXDURABILITY);
@@ -10687,6 +10720,29 @@ Item* Player::StoreNewItem(ItemPosCountVec const& dest, uint32 item, bool update
     Item* pItem = Item::CreateItem(item, count, GetObjectGuid());
     if (pItem)
     {
+        // Modification - trading in loot for two hours.
+        if (GetMap()->IsRaid() && (pItem->GetProto()->Bonding == BIND_WHEN_PICKED_UP || pItem->GetProto()->Bonding == BIND_QUEST_ITEM))
+        {
+            pItem->SetLootingTime(time(nullptr));
+            pItem->SetDurationRaidLooting(sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME));
+
+            std::ostringstream ss;
+            if (Group* pGroup = GetGroup())
+            {
+                ss << ":";
+                for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+                {
+                    if (Player* pMember = itr->getSource())
+                    {
+                        if (pMember->IsBot() || !pMember->GetMap()->IsRaid() || pMember->GetMap()->GetInstanceId() != GetMap()->GetInstanceId())
+                            continue;
+                        ss << pMember->GetGUIDLow() << ":";
+                    }
+                }
+            }
+            pItem->SetRaidGroup(ss.str().c_str());
+        }
+
         ItemAddedQuestCheck(item, count);
         if (randomPropertyId)
             pItem->SetItemRandomProperties(randomPropertyId);
@@ -10744,9 +10800,10 @@ Item* Player::_StoreItem(uint16 pos, Item* pItem, uint32 count, bool clone, bool
         if (!pItem)
             return nullptr;
 
-        if (pItem->GetProto()->Bonding == BIND_WHEN_PICKED_UP ||
-                pItem->GetProto()->Bonding == BIND_QUEST_ITEM ||
-                (pItem->GetProto()->Bonding == BIND_WHEN_EQUIPPED && IsBagPos(pos)))
+        // Modification - trading in loot for two hours.
+        if (pItem->GetLootingTime() && pItem->GetLootingTime() + sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME) >= time(nullptr))
+            pItem->SetBinding(false);
+        else if (pItem->GetProto()->Bonding == BIND_WHEN_PICKED_UP || pItem->GetProto()->Bonding == BIND_QUEST_ITEM || (pItem->GetProto()->Bonding == BIND_WHEN_EQUIPPED && IsBagPos(pos)))
             pItem->SetBinding(true);
 
         if (bag == INVENTORY_SLOT_BAG_0)
@@ -10789,9 +10846,10 @@ Item* Player::_StoreItem(uint16 pos, Item* pItem, uint32 count, bool clone, bool
     }
     else
     {
-        if (pItem2->GetProto()->Bonding == BIND_WHEN_PICKED_UP ||
-                pItem2->GetProto()->Bonding == BIND_QUEST_ITEM ||
-                (pItem2->GetProto()->Bonding == BIND_WHEN_EQUIPPED && IsBagPos(pos)))
+        // Modification - trading in loot for two hours.
+        if (pItem2->GetLootingTime() && pItem2->GetLootingTime() + sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME) >= time(nullptr))
+            pItem2->SetBinding(false);
+        else if (pItem->GetProto()->Bonding == BIND_WHEN_PICKED_UP || pItem->GetProto()->Bonding == BIND_QUEST_ITEM || (pItem->GetProto()->Bonding == BIND_WHEN_EQUIPPED && IsBagPos(pos)))
             pItem2->SetBinding(true);
 
         pItem2->SetCount(pItem2->GetCount() + count);
@@ -10926,6 +10984,15 @@ Item* Player::EquipItem(uint16 pos, Item* pItem, bool update)
         return pItem2;
     }
 
+    // Modification - trading in loot for two hours.
+    if (pItem->GetLootingTime())
+    {
+        pItem->SetDurationRaidLooting(0);
+        pItem->SetLootingTime(0);
+        pItem->SetRaidGroup("");
+        pItem->SetBinding(true);
+    }
+
     return pItem;
 }
 
@@ -10954,7 +11021,17 @@ void Player::SetVisibleItemSlot(uint8 slot, Item const* pItem)
         SetGuidValue(PLAYER_VISIBLE_ITEM_1_CREATOR + (slot * MAX_VISIBLE_ITEM_OFFSET), pItem->GetGuidValue(ITEM_FIELD_CREATOR));
 
         int VisibleBase = PLAYER_VISIBLE_ITEM_1_0 + (slot * MAX_VISIBLE_ITEM_OFFSET);
-        SetUInt32Value(VisibleBase + 0, pItem->GetEntry());
+        //Transmogrification
+        uint64 item_guid = pItem->GetGUIDLow();
+        uint64 character_guid = pItem->GetOwnerGuid();
+        std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT `entry` FROM `character_transmog` WHERE `guid` = '%u' and `character` = '%u'", item_guid, character_guid);
+        if(result){
+            Field* fields = result->Fetch();
+            uint64 item_entry = fields[0].GetUInt64();
+            SetUInt32Value(VisibleBase + 0, item_entry);
+        }else{
+            SetUInt32Value(VisibleBase + 0, pItem->GetEntry());
+        }
 
         for (int i = 0; i < MAX_INSPECTED_ENCHANTMENT_SLOT; ++i)
             SetUInt32Value(VisibleBase + 1 + i, pItem->GetEnchantmentId(EnchantmentSlot(i)));
@@ -10978,13 +11055,21 @@ void Player::SetVisibleItemSlot(uint8 slot, Item const* pItem)
     }
 }
 
+void Player::ReplaceCharacterTransmog(uint64 guid, uint64 entry, uint64 character)
+{
+    CharacterDatabase.PExecute("REPLACE INTO `character_transmog` (`guid`, `entry`, `character`) VALUES (%u, %u, %u)", guid, entry, character);
+}
+
 void Player::VisualizeItem(uint8 slot, Item* pItem)
 {
     if (!pItem)
         return;
 
     // check also  BIND_WHEN_PICKED_UP and BIND_QUEST_ITEM for .additem or .additemset case by GM (not binded at adding to inventory)
-    if (pItem->GetProto()->Bonding == BIND_WHEN_EQUIPPED || pItem->GetProto()->Bonding == BIND_WHEN_PICKED_UP || pItem->GetProto()->Bonding == BIND_QUEST_ITEM)
+    // Modification - trading in loot for two hours.
+    if (pItem->GetLootingTime() && pItem->GetLootingTime() + sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME) >= time(nullptr))
+        pItem->SetBinding(false);
+    else if (pItem->GetProto()->Bonding == BIND_WHEN_EQUIPPED || pItem->GetProto()->Bonding == BIND_WHEN_PICKED_UP || pItem->GetProto()->Bonding == BIND_QUEST_ITEM)
         pItem->SetBinding(true);
 
     sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "STORAGE: EquipItem slot = %u, item = %u", slot, pItem->GetEntry());
@@ -12128,6 +12213,27 @@ void Player::UpdateItemDuration(uint32 time, bool realtimeonly)
     }
 }
 
+// Modification - trading in loot for two hours.
+void Player::UpdateItemsInBags(uint32 diff)
+{
+    for (int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_ITEM_END; ++i)
+    {
+        if (Item* pItem = GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+        {
+            if (pItem->GetLootingTime() && pItem->GetLootingTime() + sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME) < time(nullptr))
+            {
+                pItem->SetBinding(true);
+                pItem->SetLootingTime(0);
+                pItem->SetRaidGroup("");
+            }
+            else
+            {
+                pItem->UpdateDurationRaidLooting(diff);
+            }
+        }
+    }
+}
+
 void Player::UpdateEnchantTime(uint32 time)
 {
     for (EnchantDurationList::iterator itr = m_enchantDuration.begin(), next; itr != m_enchantDuration.end(); itr = next)
@@ -13080,7 +13186,7 @@ bool Player::CanTakeQuest(Quest const* pQuest, bool msg, bool skipStatusCheck /*
 
     return (skipStatusCheck || SatisfyQuestStatus(pQuest, msg)) && SatisfyQuestExclusiveGroup(pQuest, msg) &&
            SatisfyQuestClass(pQuest, msg) && SatisfyQuestRace(pQuest, msg) && SatisfyQuestLevel(pQuest, msg) &&
-           SatisfyQuestSkill(pQuest, msg) && SatisfyQuestCondition(pQuest, msg) && SatisfyQuestReputation(pQuest, msg) &&
+           SatisfyQuestDaily(pQuest, msg) && SatisfyQuestSkill(pQuest, msg) && SatisfyQuestCondition(pQuest, msg) && SatisfyQuestReputation(pQuest, msg) &&
            SatisfyQuestPreviousQuest(pQuest, msg) && SatisfyQuestTimed(pQuest, msg) &&
            SatisfyQuestNextChain(pQuest, msg) && SatisfyQuestPrevChain(pQuest, msg) &&
            SatisfyQuestBreadcrumbQuest(pQuest, msg) && SatisfyQuestDependentBreadcrumbQuests(pQuest, msg) &&
@@ -13752,6 +13858,10 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, WorldObject* questE
                 if (!HasAura(itr->second->spellId, EFFECT_INDEX_0))
                     CastSpell(this, itr->second->spellId, true);
     }
+
+    // daily quest recall Player::SaveToDB() at quest reward
+    if (quest_id == 10004 || quest_id == 10005 || quest_id == 10006)
+        SaveToDB();
 }
 
 void Player::FailQuest(uint32 questId)
@@ -13786,6 +13896,48 @@ void Player::FailQuest(uint32 questId)
         else
             SendQuestFailed(questId);
     }
+}
+
+uint32 getTodayStartTimestamp()
+{
+    time_t rawtime = time(NULL);
+    struct tm *timeinfo = localtime(&rawtime);
+    timeinfo->tm_hour = 0;
+    timeinfo->tm_min = 0;
+    timeinfo->tm_sec = 0;
+    return mktime(timeinfo);
+}
+
+bool Player::SatisfyQuestDaily(Quest const* qInfo, bool msg) const
+{
+    uint32 quest_id = qInfo->GetQuestId();
+    if (!(quest_id == 10004 || quest_id == 10005 || quest_id == 10006))
+        return true;
+
+    uint32 todayStart = getTodayStartTimestamp();
+    uint32 todayEnd = todayStart + 86399;
+    std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT `quest` FROM `character_queststatus` WHERE `guid`='%u' and `quest`='%u' and `timer`>='%u' and `timer`<='%u' and `status`=0 and `rewarded`=1 and `mob_count1`=1 and `mob_count2`=1 and `mob_count3`=1", GetGUIDLow(), quest_id, todayStart, todayEnd);
+    if (result)
+    {
+        uint32 id = result->Fetch()[0].GetUInt32();
+        switch (id)
+        {
+            case 10004:
+                GetSession()->SendNotification("Hello, Blackrock Mountain! can only be completed once a day.");
+                break;
+            case 10005:
+                GetSession()->SendNotification("Hello, Plaguelands! can only be completed once a day.");
+                break;
+            case 10006:
+                GetSession()->SendNotification("Hello, Dire Maul! can only be completed once a day.");
+                break;
+        }
+        if (msg)
+            SendCanTakeQuestResponse(INVALIDREASON_DONT_HAVE_REQ);
+        return false;
+    }
+
+    return true;
 }
 
 bool Player::SatisfyQuestSkill(Quest const* qInfo, bool msg) const
@@ -15466,6 +15618,9 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
 
     _LoadSpells(holder->TakeResult(PLAYER_LOGIN_QUERY_LOADSPELLS));
 
+    //Dual Talent Specialization
+    _LoadAlternativeSpec();
+
     // after spell load
     InitTalentForLevel();
     LearnDefaultSpells();
@@ -15932,8 +16087,8 @@ void Player::LoadCorpse()
 
 bool Player::_LoadInventory(std::unique_ptr<QueryResult> result, uint32 timediff, bool& hasEpicMount)
 {
-    //       0             1                  2      3         4        5      6             7                   8           9     10   11    12         13              14
-    //SELECT creator_guid, gift_creator_guid, count, duration, charges, flags, enchantments, random_property_id, durability, text, bag, slot, item_guid, item_id, generated_loot
+    //       0             1                  2      3         4        5      6             7                   8           9     10   11    12         13              14       15            16
+    //SELECT creator_guid, gift_creator_guid, count, duration, charges, flags, enchantments, random_property_id, durability, text, bag, slot, item_guid, item_id, generated_loot, looting_date, raid_group
 
     if (result)
     {
@@ -15957,6 +16112,8 @@ bool Player::_LoadInventory(std::unique_ptr<QueryResult> result, uint32 timediff
             uint8  slot         = fields[11].GetUInt8();
             uint32 item_lowguid = fields[12].GetUInt32();
             uint32 item_id      = fields[13].GetUInt32();
+            uint64 looting_time = fields[15].GetUInt64(); // Modification - trading in loot for two hours.
+            std::string raid_group = fields[16].GetCppString(); // Modification - trading in loot for two hours.
 
             ItemPrototype const* proto = sObjectMgr.GetItemPrototype(item_id);
 
@@ -16110,6 +16267,21 @@ bool Player::_LoadInventory(std::unique_ptr<QueryResult> result, uint32 timediff
                 // restore container unchanged state also
                 if (item->GetContainer())
                     item->GetContainer()->SetState(ITEM_UNCHANGED, this);
+
+                // Modification - trading in loot for two hours.
+                if (looting_time && looting_time + sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME) >= time(nullptr) && (item->GetState() == ITEM_NEW || item->GetState() == ITEM_UNCHANGED))
+                {
+                    item->SetDurationRaidLooting(time(nullptr) - looting_time);
+                    item->SetBinding(false);
+                    item->SetRaidGroup(raid_group);
+                    item->SetLootingTime(looting_time);
+                }
+                if (looting_time && looting_time + sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME) < time(nullptr))
+                {
+                    item->SetRaidGroup("");
+                    item->SetLootingTime(0);
+                    item->SetBinding(true);
+                }
             }
             else
             {
@@ -17239,26 +17411,37 @@ void Player::_SaveInventory()
         Bag* container = item->GetContainer();
         uint32 bag_guid = container ? container->GetGUIDLow() : 0;
 
+        // Modification - trading in loot for two hours.
+        if (item->GetLootingTime() && item->GetLootingTime() + sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME) < time(nullptr))
+        {
+            item->SetLootingTime(0);
+            item->SetRaidGroup("");
+        }
+
         switch (item->GetState())
         {
             case ITEM_NEW:
             {
-                SqlStatement stmt = CharacterDatabase.CreateStatement(insertInventory, "INSERT INTO `character_inventory` (`guid`, `bag`, `slot`, `item_guid`, `item_id`) VALUES (?, ?, ?, ?, ?)");
+                SqlStatement stmt = CharacterDatabase.CreateStatement(insertInventory, "INSERT INTO `character_inventory` (`guid`, `bag`, `slot`, `item_guid`, `item_id`, `looting_date`, `raid_group`) VALUES (?, ?, ?, ?, ?, ?, ?)");
                 stmt.addUInt32(GetGUIDLow());
                 stmt.addUInt32(bag_guid);
                 stmt.addUInt8(item->GetSlot());
                 stmt.addUInt32(item->GetGUIDLow());
                 stmt.addUInt32(item->GetEntry());
+                stmt.addUInt64(item->GetLootingTime()); // Modification - trading in loot for two hours.
+                stmt.addString(item->GetRaidGroup()); // Modification - trading in loot for two hours.
                 stmt.Execute();
             }
             break;
             case ITEM_CHANGED:
             {
-                SqlStatement stmt = CharacterDatabase.CreateStatement(updateInventory, "UPDATE `character_inventory` SET `guid` = ?, `bag` = ?, `slot` = ?, `item_id` = ? WHERE `item_guid` = ?");
+                SqlStatement stmt = CharacterDatabase.CreateStatement(updateInventory, "UPDATE `character_inventory` SET `guid` = ?, `bag` = ?, `slot` = ?, `item_id` = ?, `looting_date` = ?, `raid_group` = ? WHERE `item_guid` = ?");
                 stmt.addUInt32(GetGUIDLow());
                 stmt.addUInt32(bag_guid);
                 stmt.addUInt8(item->GetSlot());
                 stmt.addUInt32(item->GetEntry());
+                stmt.addUInt64(item->GetLootingTime()); // Modification - trading in loot for two hours.
+                stmt.addString(item->GetRaidGroup()); // Modification - trading in loot for two hours.
                 stmt.addUInt32(item->GetGUIDLow());
                 stmt.Execute();
             }
@@ -18528,16 +18711,23 @@ bool Player::ActivateTaxiPathTo(std::vector<uint32> const& nodes, Creature const
     // reset extraAttacks counter
     ResetExtraAttacks();
 
-    if (GetPet())
-        RemovePet(PET_SAVE_REAGENTS);
-
-    WorldPacket data(SMSG_ACTIVATETAXIREPLY, 4);
-    data << uint32(ERR_TAXIOK);
-    GetSession()->SendPacket(&data);
-
-    GetSession()->SendDoFlight(mount_display_id, sourcepath);
-
-    return true;
+    // instant flight do not remove pet
+    if(HasItemCount(26000, 1))
+    {
+        TaxiNodesEntry const* lastnode = sObjectMgr.FindTaxiNodesEntry(nodes[nodes.size() - 1]);
+		m_taxi.ClearTaxiDestinations();
+		TeleportTo(lastnode->map_id, lastnode->x, lastnode->y, lastnode->z, GetOrientation());
+		return false;
+    }
+    else{
+        if (GetPet())
+            RemovePet(PET_SAVE_REAGENTS);
+        WorldPacket data(SMSG_ACTIVATETAXIREPLY, 4);
+        data << uint32(ERR_TAXIOK);
+        GetSession()->SendPacket(&data);
+        GetSession()->SendDoFlight(mount_display_id, sourcepath);
+        return true;
+    }
 }
 
 bool Player::ActivateTaxiPathTo(uint32 taxi_path_id, uint32 spellid /*= 0*/, bool nocheck)
@@ -20306,10 +20496,16 @@ uint32 Player::SelectResurrectionSpellId() const
             prio = 3;
         }
         // Twisting Nether                                  // prio: 2 (max)
-        else if (dummyAura->GetId() == 23701 && roll_chance_i(10))
+        else if (prio != 2 && dummyAura->GetId() == 23701 && roll_chance_i(10))
         {
             prio = 2;
             spellId = 23700;
+        }
+        // Aegis of the Immortal                            // prio: 2 (max)
+        else if (dummyAura->GetId() == 34175 && IsSpellReady(34176))
+        {
+            prio = 2;
+            spellId = 34176;
         }
     }
 
@@ -20346,6 +20542,11 @@ void Player::RewardSinglePlayerAtKill(Unit const* pVictim)
     bool PvP = pVictim->IsCharmerOrOwnerPlayerOrPlayerItself();
     uint32 xp = PvP ? 0 : MaNGOS::XP::Gain(this, static_cast<Creature const*>(pVictim));
     
+    //Double Experience
+    if(HasItemCount(26002, 1))
+    {
+        xp = xp * 2;
+    }
     // honor can be in PvP and !PvP (racial leader) cases
     RewardHonor(pVictim, 1);
 
@@ -20359,7 +20560,15 @@ void Player::RewardSinglePlayerAtKill(Unit const* pVictim)
         if (xp)
         {
             if (Pet* pet = GetPet())
-                pet->GivePetXP(MaNGOS::XP::Gain(pet, static_cast<Creature const*>(pVictim)));
+            {
+                //Double Experience
+                uint32 xp_pet = MaNGOS::XP::Gain(pet, static_cast<Creature const*>(pVictim));
+                if(HasItemCount(26002, 1))
+                {
+                    xp_pet = xp_pet * 2;
+                }
+                pet->GivePetXP(xp_pet);
+            }   
         }
 
         // normal creature (not pet/etc) can be only in !PvP case
@@ -23058,4 +23267,122 @@ void Player::ClearTemporaryWarWithFactions()
         }
         m_temporaryAtWarFactions.clear();
     }
+}
+
+//Dual Talent Specialization
+void Player::_LoadAlternativeSpec() {
+
+	m_altspec_talents.clear();
+	std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT spells FROM character_swap_spec WHERE guid = '%u'",GetGUIDLow());
+
+	if (result)
+	{
+		Field *fields = result->Fetch();
+		std::string spells = fields[0].GetString();
+		std::istringstream ss(spells);
+		std::string spell;
+
+		while(std::getline(ss, spell, ' ')) {
+			m_altspec_talents.push_back(atoi(spell.c_str()));
+		}
+	}
+
+};
+
+void Player::_SaveAlternativeSpec()
+{
+    uint32 ts = uint32(time(NULL));
+	//At first, save spells.
+	std::ostringstream ss;
+	ss << "REPLACE INTO character_swap_spec (guid, spells, timestamp) VALUES ('" << GetGUIDLow() << "', '";
+	//Okay, now serialize it into string of ids, separated by whitespace
+	for (SpellIDList::iterator it = m_altspec_talents.begin(); it != m_altspec_talents.end(); it++)
+		ss << *it << " ";
+	ss << "', '" << std::to_string(ts) << "')";
+
+	//Nice, it saved!
+	CharacterDatabase.PExecute(ss.str().c_str());
+	
+}
+
+uint32 Player::SwapSpec()
+{
+	//Level check
+	if (GetLevel() <= 10)
+		return 2;
+
+	//Time check
+    uint32 ts = uint32(time(NULL)) - 7200;
+    std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT timestamp FROM character_swap_spec WHERE guid = '%u'",GetGUIDLow());
+	if (result)
+	{
+		Field *fields = result->Fetch();
+		std::string str_ts = fields[0].GetString();
+        ts = uint32(atoi(str_ts.c_str()));
+	}
+
+	if (uint32(time(NULL) - ts) < sWorld.getConfig(CONFIG_SWAP_SPEC_INTERVAL))
+        return 3;
+
+	/*********************************************************/
+	/***                   SAVE TALENTS                    ***/
+	/*********************************************************/
+	//copy current talents list
+	SpellIDList tmp = m_altspec_talents;
+
+	//erase it for populating using current talents
+	m_altspec_talents.clear();
+
+	//Find all talents, general idea from Player::resetTalents
+	for (unsigned int i = 0; i < sTalentStore.GetNumRows(); ++i) {
+		TalentEntry const *talentInfo = sTalentStore.LookupEntry(i);
+		if (!talentInfo) continue;
+		TalentTabEntry const *talentTabInfo = sTalentTabStore.LookupEntry(talentInfo->TalentTab);
+		if (!talentTabInfo) continue;
+		if ((GetClassMask() & talentTabInfo->ClassMask) == 0) continue;
+		for (int j = 0; j < 5; ++j) {
+			for (PlayerSpellMap::iterator itr = GetSpellMap().begin(); itr != GetSpellMap().end();) {
+
+				//skip disabled talents like Pyroblast or some else
+				if (itr->second.state == PLAYERSPELL_REMOVED || itr->second.disabled)
+				{
+					++itr;
+					continue;
+				}
+
+				//for spells, which can be updated via trainers(like Pyroblast), we can'n just compare, cuz
+				// >1 ranks are not in talens store. So, first rank it is. We can just get lowerest rank of skill
+				// and search it in the talents storage.
+				uint32 itrFirstId = sSpellMgr.GetFirstSpellInChain(itr->first);
+
+				//now - just compare. Also, it make sense to add "|| spellmgr.IsSpellLearnToSpell(talentInfo->RankID[j],itrFirstId)"
+				//but i have no idea what it is, it uses in the Player::resetTalents function and it may be needed.
+				//Also, there is a some spells like Prayer of Spirit, which not in talents tree, but its depends on talents.
+				//So, we need just to get required spell by current spell and find is it in player spellbook.
+				if (itrFirstId == talentInfo->RankID[j]
+					|| sSpellMgr.IsSpellLearnToSpell(talentInfo->RankID[j], itrFirstId)
+					)//|| HasSpell(spellmgr.GetSpellRequired(itrFirstId)))
+					m_altspec_talents.push_back(itr->first);
+				++itr;
+			}
+		}
+	}
+
+	/*********************************************************/
+	/***                   LOAD TALENTS                    ***/
+	/*********************************************************/
+	ResetTalents(true);
+	for (SpellIDList::iterator it = tmp.begin(); it != tmp.end(); it++)
+	{
+		LearnSpell(*it, false, true);
+	}
+	InitTalentForLevel();
+	//learnSkillRewardedSpells();
+
+	//Drop mana and health to minimum for preventing of profit from swappings
+	SetHealth(12);
+	SetPower(POWER_MANA, 12);
+	_SaveAlternativeSpec();
+    //Okay
+	return 1;
 }

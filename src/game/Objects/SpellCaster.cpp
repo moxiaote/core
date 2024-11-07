@@ -1369,10 +1369,23 @@ float SpellCaster::SpellDamageBonusDone(Unit const* pVictim, SpellEntry const* s
             {
                 case 4418: // Increased Shock Damage
                 case 4554: // Increased Lightning Damage
-                case 4555: // Improved Moonfire
                 {
                     DoneTotal += i->GetModifier()->m_amount;
                     break;
+                }
+                case 4555: // Improved Moonfire (Idol of the moon)
+                {
+                    // Idol of the moon was bugged during vanilla 1.12
+                    // Following math is based on reported numbers from classic and an old post on allakhazam and wowhead classic
+                    // Direct damage bonus = 17/8 % and Dot damage bonus = 17/tickcount %
+                    // Further information and discussion can be found at vmangos PR #2802
+                    uint32 divisor = 800;
+                    if (damagetype == DOT)
+                    {
+                        divisor = 100 * spellProto->GetAuraMaxTicks();
+                    }
+
+                    DoneTotal += i->GetModifier()->m_amount * pdamage / divisor;
                 }
             }
         }
@@ -1389,6 +1402,21 @@ float SpellCaster::SpellDamageBonusDone(Unit const* pVictim, SpellEntry const* s
                 case CONTENT:   break;
                 case UNHAPPY:   DoneTotalMod *= 0.75; break;
             }
+        }
+    }
+
+    // Warlock spell power apply to IMP_FIREBOLT & SUCCUBUS_LASH_OF_PAIN
+    if (IsPet() && pUnit->GetOwnerGuid().IsPlayer())
+    {
+        // IMP_FIREBOLT
+        if (spellProto->Id == 3110 || spellProto->Id == 7799 || spellProto->Id == 7800 || spellProto->Id == 7801 || spellProto->Id == 7802 || spellProto->Id == 11762 || spellProto->Id == 11763)
+        {
+            DoneTotal += pUnit->GetOwner()->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + SPELL_SCHOOL_HOLY) * 0.35;
+        }
+        // SUCCUBUS_LASH_OF_PAIN
+        if (spellProto->Id == 7814 || spellProto->Id == 7815 || spellProto->Id == 7816 || spellProto->Id == 11778 || spellProto->Id == 11779 || spellProto->Id == 11780)
+        {
+            DoneTotal += pUnit->GetOwner()->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + SPELL_SCHOOL_HOLY) * 1.00;
         }
     }
 

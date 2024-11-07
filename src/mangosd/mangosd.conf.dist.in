@@ -1157,6 +1157,7 @@ BeepAtStart = 1
 ShowProgressBars = 0
 WaitAtStartupError = 0
 Motd = "Welcome to World of Warcraft!"
+Instance.IgnoreAQGate = 1
 
 ###################################################################################################################
 # PLAYER INTERACTION
@@ -1485,13 +1486,13 @@ Antiflood.Sanction = 8
 #
 #    Warden.WinEnabled
 #        Description: Enables Warden checks for Windows clients.
-#        Default:     1 - (Enabled)
-#                     0 - (Disabled)
+#                     1 - (Enabled)
+#        Default:     0 - (Disabled)
 #
 #    Warden.OSXEnabled
 #        Description: Enables Warden checks for OSX clients.
-#        Default:     1 - (Enabled)
-#                     0 - (Disabled)
+#                     1 - (Enabled)
+#        Default:     0 - (Disabled)
 #
 #    Warden.PlayersOnly
 #        Description: Ignore game master accounts.
@@ -1535,8 +1536,8 @@ Antiflood.Sanction = 8
 #
 ###################################################################################################
 
-Warden.WinEnabled            = 1
-Warden.OSXEnabled            = 1
+Warden.WinEnabled            = 0
+Warden.OSXEnabled            = 0
 Warden.PlayersOnly           = 0
 Warden.NumScans              = 10
 Warden.ClientResponseDelay   = 30
@@ -1551,8 +1552,8 @@ Warden.ModuleDir             = "warden_modules"
 #
 #    Anticheat.Enable
 #        Description: Enables player movement checks.
-#        Default:     1 - (Enabled)
-#                     0 - (Disabled)
+#                     1 - (Enabled)
+#        Default:     0 - (Disabled)
 #
 #    Anticheat.PlayersOnly
 #        Description: Ignore game master accounts.
@@ -2100,7 +2101,7 @@ Warden.ModuleDir             = "warden_modules"
 #
 ###################################################################################################
 
-Anticheat.Enable = 1
+Anticheat.Enable = 0
 Anticheat.PlayersOnly = 1
 Anticheat.NotifyCheaters = 0
 Anticheat.BanDuration = 86400
@@ -2573,6 +2574,10 @@ Visibility.ForceActiveObjects      = 1
 #         Default: 0 (the real pool size will be used)
 #                  X (the real pool size will be overriden with X)
 #
+#    SwapSpecInterval
+#         Swap spec at interval of several seconds.
+#         Default: 900
+#
 ###################################################################################################################
 
 Rate.Health = 1
@@ -2644,6 +2649,7 @@ Death.Ghost.RunSpeed.Battleground = 1.0
 Rate.WarEffortResourceComplete = 0.0
 WarEffortResourceCompletePeriod = 86400
 PvP.PoolSizePerFaction = 0
+SwapSpecInterval = 900
 
 ###################################################################################################################
 # BATTLEGROUND CONFIG
@@ -3010,6 +3016,31 @@ PartyBot.RandomGearLevelDifference = 10
 
 BattleBot.AutoEquip = 1
 BattleBot.AutoJoin = 0
+BattleBot.QueuedMaxCount = 0
+
+WarriorBotSummonPet = 1
+PaladinBotSummonPet = 1
+HunterBotSummonPet  = 1
+RogueBotSummonPet   = 1
+PriestBotSummonPet  = 1
+ShamanBotSummonPet  = 1
+MageBotSummonPet    = 1
+WarlockBotSummonPet = 1
+DruidBotSummonPet   = 1
+
+BotHunterPetLoseHappiness = 0
+BotEnvironmentalDamage    = 0
+BotDurabilityPointsLoss   = 0
+
+BotLootMoney = 0
+
+Buff.JieFuFuTi = 99
+
+HardcoreChallenger.Ban.Invite = 1
+HardcoreChallenger.Ban.PartyBot = 1
+HardcoreChallenger.Ban.Trade = 1
+HardcoreChallenger.Ban.Mail = 1
+HardcoreChallenger.Ban.Auction = 1
 
 ###################################################################################################################
 #    Mail flooding mitigation
@@ -3032,3 +3063,11 @@ DynamicRespawn.AffectLevelBelow         = 0
 DynamicRespawn.PlayersThreshold         = 0
 DynamicRespawn.PlayersMaxLevelDiff      = 0
 
+###################################################################################################################
+#    Modification - trading in loot for two hours.
+#
+#    TradingRaidLoot.Time - in secounds
+#        Default: 7200
+###################################################################################################################
+
+TradingRaidLoot.Time = 7200

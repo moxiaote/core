@@ -14,22 +14,27 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef _AUTH_SARC4_H
-#define _AUTH_SARC4_H
+#include "TimePeriod.h"
 
-#include <openssl/evp.h>
-#include "Common.h"
-
-class ARC4
-{
-    public:
-        ARC4(uint8 len);
-        ARC4(uint8* seed, uint8 len);
-        ~ARC4();
-        void Init(const uint8* seed);
-        void UpdateData(uint8* data, size_t len);
-    private:
-        EVP_CIPHER_CTX* m_ctx;
-};
-
+#ifdef _WIN32
+	#include <Windows.h>
+	#pragma comment(lib, "Winmm.lib")
 #endif
+
+// That's right, this only does something on Windows
+ScopedTimerPeriod set_time_period(const std::chrono::milliseconds ms)
+{
+#ifdef _WIN32
+    auto count = ms.count();
+    const auto result = timeBeginPeriod(count);
+
+    ScopedTimerPeriod sf(result == TIMERR_NOERROR, [count]
+    {
+      timeEndPeriod(count);
+    });
+
+	return sf;
+#else
+	return { true, [] {} };
+#endif
+}

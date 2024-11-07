@@ -16,37 +16,46 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef _AUTH_HMACSHA1_H
-#define _AUTH_HMACSHA1_H
+#ifndef _MANGOS_CRYPTO_HASH_HMACSHA1_H
+#define _MANGOS_CRYPTO_HASH_HMACSHA1_H
 
-#include "Common.h"
-#include <openssl/hmac.h>
-#include <openssl/sha.h>
+#include "Platform/Define.h"
+
+#include <array>
+#include <string>
+#include <vector>
+
+#include "SHA1.h"
 
 class BigNumber;
 
-#define SEED_KEY_SIZE 16
+typedef struct hmac_ctx_st HMAC_CTX;
 
-class HMACSHA1
+namespace Crypto { namespace Hash { namespace HMACSHA1
 {
-    public:
-        HMACSHA1(const uint8* seed, size_t len);
-        ~HMACSHA1();
-        void UpdateBigNumber(BigNumber* bn);
-        void UpdateData(std::vector<uint8> const& data);
-        void UpdateData(uint8 const* data, int length);
-        void UpdateData(std::string const& str);
-        void Finalize();
-        uint8* ComputeHash(BigNumber* bn);
-        uint8* GetDigest() { return (uint8*)m_digest; }
-        int GetLength() { return SHA_DIGEST_LENGTH; }
-    private:
+    typedef SHA1::Digest Digest;
 
-#if defined(OPENSSL_VERSION_NUMBER) && OPENSSL_VERSION_NUMBER >= 0x10100000L
+    constexpr Digest CreateEmpty() { return {}; }
+
+    class Generator
+    {
+    public:
+        Generator(uint8 const* key, size_t len);
+        ~Generator();
+
+        template <std::size_t N>
+        void UpdateData(std::array<uint8, N> const& data) { UpdateData(data.data(), data.size()); }
+        void UpdateData(std::vector<uint8> const& data);
+        void UpdateData(std::string const& data);
+        void UpdateData(BigNumber const& data);
+        void UpdateData(uint8 const* data, size_t length);
+
+        Digest GetDigest();
+
+    private:
         HMAC_CTX* m_ctx;
-#else
-        HMAC_CTX m_ctx;
-#endif
-        uint8 m_digest[SHA_DIGEST_LENGTH];
-};
+    };
+
+}}} // namespace Crypto::Hash::HMACSHA1
+
 #endif

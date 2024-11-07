@@ -590,6 +590,11 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     if (!pVictim)
                         return SPELL_AURA_PROC_FAILED;
 
+                    // dont trigger from non damaging spells, amount is 1 for non damaging spells if they hit
+                    // tested on classic that rend does not trigger sweeping strikes
+                    if (amount <= 1)
+                        return SPELL_AURA_PROC_FAILED;
+
                     // Prevent chain of triggered spell from same triggered spell
                     if (procSpell && (procSpell->Id == 26654 || procSpell->Id == 12723))
                         return SPELL_AURA_PROC_FAILED;
@@ -719,11 +724,11 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     ++triggeredByAura->GetModifier()->m_amount;
                     triggerAmount = triggeredByAura->GetModifier()->m_amount;
 
-                    if (triggerAmount == 50)
+                    if (triggerAmount == 5)
                         MonsterTextEmote(-1531044, nullptr, true); // Cracks
-                    else if (triggerAmount == 100)
+                    else if (triggerAmount == 10)
                         MonsterTextEmote(-1531045, nullptr, true); // Shatter
-                    else if (triggerAmount == 150)
+                    else if (triggerAmount == 15)
                     {
                         RemoveAurasDueToSpell(25937);
                         triggered_spell_id = 25938; // Explode
@@ -780,6 +785,133 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
 
                     target = this;
                     break;
+                }
+                // Hunter: Headshot
+                case 34010:
+                {
+                    if (this->GetTypeId() != TYPEID_PLAYER)
+                        return SPELL_AURA_PROC_FAILED;
+                    if (!pVictim)
+                        return SPELL_AURA_PROC_FAILED;
+                    float headshot_distance = this->GetDistance(pVictim);
+                    float distance_coefficient = 0.5f;
+                    if (headshot_distance >= 20.0f && headshot_distance < 30.0f)
+                    {
+                        distance_coefficient = 0.75f;
+                    }
+                    else if (headshot_distance >= 30.0f)
+                    {
+                        distance_coefficient = 1.0f;
+                    }
+                    basepoints[0] = (dither(this->GetMaxHealth() * 0.35f) >= dither((pVictim->GetHealth() * 0.04f + this->GetTotalAttackPowerValue(RANGED_ATTACK)) * distance_coefficient)) ? dither((pVictim->GetHealth() * 0.04f + this->GetTotalAttackPowerValue(RANGED_ATTACK)) * distance_coefficient) : dither(this->GetMaxHealth() * 0.35f);
+                    target = pVictim;
+                    triggered_spell_id = 34011;
+                    break;                               // no hidden cooldown
+                }
+                // Shaman: thundercloud
+                case 34206:
+                {
+                    if (this->GetTypeId() != TYPEID_PLAYER)
+                        return SPELL_AURA_PROC_FAILED;
+                    auto cdCheck = [](SpellEntry const & spellEntry) -> bool { return ((spellEntry.Id == 16166) && spellEntry.GetRecoveryTime() > 0); };
+                    static_cast<Player*>(this)->RemoveSomeCooldown(cdCheck);
+                    if (!pVictim)
+                        return SPELL_AURA_PROC_FAILED;
+                    basepoints[0] = (dither(this->GetMaxHealth() * 0.5f) >= dither(pVictim->GetHealth() * 0.12f)) ? dither(pVictim->GetHealth() * 0.12f) : dither(this->GetMaxHealth() * 0.5f);
+                    target = pVictim;
+                    triggered_spell_id = 34207;
+                    break;                               // no hidden cooldown
+                }
+                // Misha: echo slam
+                case 34195:
+                {
+                    // echo slam target count
+                    uint8 EchoSlamTargetCount = this->GetEnemyCountInRadiusAround(this, 10.0f);
+                    basepoints[0] = dither(triggerAmount * EchoSlamTargetCount + 30.0f);
+                    target = this;
+                    triggered_spell_id = 34196;
+                    break;                               // no hidden cooldown
+                }
+                // Sven: mask of madness
+                case 34193:
+                {
+                    // heal amount
+                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34194;
+                    break;                               // no hidden cooldown
+                }
+                // Azzinoth's Aura
+                case 34124:
+                {
+                    // heal amount
+                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34125;
+                    break;                               // no hidden cooldown
+                }
+                // melee blood drain + 1%
+                case 34144:
+                {
+                    // heal amount
+                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34150;
+                    break;                               // no hidden cooldown
+                }
+                // melee blood drain + 2%
+                case 34145:
+                {
+                    // heal amount
+                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34150;
+                    break;                               // no hidden cooldown
+                }
+                // range blood drain + 1%
+                case 34146:
+                {
+                    // heal amount
+                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34150;
+                    break;                               // no hidden cooldown
+                }
+                // range blood drain + 2%
+                case 34147:
+                {
+                    // heal amount
+                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34150;
+                    break;                               // no hidden cooldown
+                }
+                // cast blood drain + 1%
+                case 34148:
+                {
+                    // heal amount
+                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34150;
+                    break;                               // no hidden cooldown
+                }
+                // cast blood drain + 2%
+                case 34149:
+                {
+                    // heal amount
+                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34150;
+                    break;                               // no hidden cooldown
+                }
+                // Bloodborne Gehrman blood drain + 100%
+                case 34271:
+                {
+                    // heal amount
+                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34272;
+                    break;                               // no hidden cooldown
                 }
                 // Obsidian Armor (Justice Bearer`s Pauldrons shoulder)
                 case 27539:
@@ -1420,7 +1552,21 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(Unit* pVictim, uint32 a
         case SPELLFAMILY_DRUID:
             break;
         case SPELLFAMILY_HUNTER:
+        {
+            switch (auraSpellInfo->Id)
+            {
+                case 5118: // Aspect of the Cheetah
+                case 13159: // Aspect of the Pack
+                {
+                    // dont trigger from non damaging spells, amount is 1 for non damaging spells if they hit
+                    if (amount <= 1)
+                        return SPELL_AURA_PROC_FAILED;
+
+                    break;
+                }
+            }
             break;
+        }
         case SPELLFAMILY_PALADIN:
         {
 #if SUPPORTED_CLIENT_BUILD <= CLIENT_BUILD_1_9_4
@@ -1730,6 +1876,19 @@ SpellAuraProcResult Unit::HandleProcTriggerDamageAuraProc(Unit* pVictim, uint32 
 
     SpellNonMeleeDamage damageInfo(this, pVictim, spellInfo->Id, SpellSchools(spellInfo->School));
     float fdamage = CalculateSpellEffectValue(pVictim, spellInfo, triggeredByAura->GetEffIndex());
+
+    // Paladin - Holy Shield : damage bonus 20% max health
+    switch (spellInfo->Id)
+    {
+        case 20925: // Rank 1
+        case 20927: // Rank 2
+        case 20928: // Rank 3
+        {
+            fdamage += triggeredByAura->GetCaster()->GetMaxHealth() * 0.2f;
+        }
+        break; 
+    }
+
     fdamage = SpellDamageBonusDone(pVictim, spellInfo, triggeredByAura->GetEffIndex(), fdamage, SPELL_DIRECT_DAMAGE);
     fdamage = pVictim->SpellDamageBonusTaken(this, spellInfo, triggeredByAura->GetEffIndex(), fdamage, SPELL_DIRECT_DAMAGE);
     damageInfo.damage = ditheru(fdamage);

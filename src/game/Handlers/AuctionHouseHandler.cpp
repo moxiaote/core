@@ -49,6 +49,13 @@ void WorldSession::HandleAuctionHelloOpcode(WorldPacket& recv_data)
         return;
     }
 
+    // Hardcore Challenger Can Not Auction
+    if (sWorld.getConfig(CONFIG_HARDCORECHALLENGER_BAN_AUCTION) == 1 && GetPlayer()->GetLevel()<60 && GetPlayer()->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+    {
+        GetPlayer()->GetSession()->SendNotification("Hardcore Challenger Can Not Auction.");
+        return;
+    }
+
     // remove fake death
     if (GetPlayer()->HasUnitState(UNIT_STAT_FEIGN_DEATH))
         GetPlayer()->RemoveSpellsCausingAura(SPELL_AURA_FEIGN_DEATH);
@@ -328,6 +335,13 @@ void WorldSession::HandleAuctionSellItem(WorldPacket& recv_data)
     }
 
     Item *it = pl->GetItemByGuid(itemGuid);
+
+    // Modification - trading in loot for two hours.
+    if (it->GetLootingTime())
+    {
+        SendAuctionCommandResult(nullptr, AUCTION_STARTED, AUCTION_ERR_INVENTORY, EQUIP_ERR_ITEM_NOT_FOUND);
+        return;
+    }
 
     // do not allow to sell already auctioned items
     if (sAuctionMgr.GetAItem(itemGuid.GetCounter()))

@@ -339,15 +339,31 @@ void PlayerBotMgr::Update(uint32 diff)
                 ASSERT(minLevel <= PLAYER_MAX_LEVEL);
                 uint32 const maxLevel = std::min<uint32>(minLevel + 9, PLAYER_MAX_LEVEL);
 
-                for (uint32 i = queuedAllianceCount[bracketId]; i < bg->GetMinPlayersPerTeam(); ++i)
+                if(sWorld.getConfig(CONFIG_BATTLE_BOT_QUEUED_MAX_COUNT) == 0)
                 {
-                    uint32 const botLevel = urand(minLevel, maxLevel);
-                    AddBattleBot(BattleGroundQueueTypeId(queueType), ALLIANCE, botLevel, true);
+                    for (uint32 i = queuedAllianceCount[bracketId]; i < bg->GetMinPlayersPerTeam(); ++i)
+                    {
+                        uint32 const botLevel = urand(minLevel, maxLevel);
+                        AddBattleBot(BattleGroundQueueTypeId(queueType), ALLIANCE, botLevel, true);
+                    }
+                    for (uint32 i = queuedHordeCount[bracketId]; i < bg->GetMinPlayersPerTeam(); ++i)
+                    {
+                        uint32 const botLevel = urand(minLevel, maxLevel);
+                        AddBattleBot(BattleGroundQueueTypeId(queueType), HORDE, botLevel, true);
+                    }
                 }
-                for (uint32 i = queuedHordeCount[bracketId]; i < bg->GetMinPlayersPerTeam(); ++i)
+                else
                 {
-                    uint32 const botLevel = urand(minLevel, maxLevel);
-                    AddBattleBot(BattleGroundQueueTypeId(queueType), HORDE, botLevel, true);
+                    for (uint32 i = queuedAllianceCount[bracketId]; i < bg->GetMaxPlayersPerTeam(); ++i)
+                    {
+                        uint32 const botLevel = urand(minLevel, maxLevel);
+                        AddBattleBot(BattleGroundQueueTypeId(queueType), ALLIANCE, botLevel, true);
+                    }
+                    for (uint32 i = queuedHordeCount[bracketId]; i < bg->GetMaxPlayersPerTeam(); ++i)
+                    {
+                        uint32 const botLevel = urand(minLevel, maxLevel);
+                        AddBattleBot(BattleGroundQueueTypeId(queueType), HORDE, botLevel, true);
+                    }
                 }
             }
         }
@@ -748,6 +764,13 @@ bool ChatHandler::HandleBotStartCommand(char * args)
 
 bool ChatHandler::PartyBotAddRequirementCheck(Player const* pPlayer, Player const* pTarget)
 {
+    // Hardcore Challenger Can Not Add Bots
+    if (sWorld.getConfig(CONFIG_HARDCORECHALLENGER_BAN_PARTYBOT) == 1 && pPlayer->GetLevel()<60 && pPlayer->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+    {
+        SendSysMessage("Hardcore Challenger Can Not Add Bots.");
+        return false;
+    }
+
     if (pPlayer->IsTaxiFlying())
     {
         SendSysMessage("Cannot add bots while flying.");
@@ -977,6 +1000,14 @@ bool ChatHandler::HandlePartyBotLoadCommand(char* args)
     if (!pPlayer)
         return false;
 
+    // Hardcore Challenger Can Not Add Bots
+    if (sWorld.getConfig(CONFIG_HARDCORECHALLENGER_BAN_PARTYBOT) == 1 && pPlayer->GetLevel()<60 && pPlayer->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+    {
+        SendSysMessage("Hardcore Challenger Can Not Add Bots.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
     std::string name = ExtractPlayerNameFromLink(&args);
     if (name.empty())
     {
@@ -996,6 +1027,15 @@ bool ChatHandler::HandlePartyBotLoadCommand(char* args)
     if (sObjectAccessor.FindPlayerNotInWorld(guid))
     {
         SendSysMessage("Player is already online!");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    // Hardcore Challenger Can Not Be Loaded As Party Bot
+    std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery("SELECT `account` FROM `characters` WHERE `guid` = '%u' AND `name` = '%s' AND `level` < 60 AND EXISTS(SELECT 1 FROM `character_queststatus` WHERE `guid` = '%u' AND `quest` = 10000 AND `status` = 1)", guid, name, guid));
+    if (result)
+    {
+        SendSysMessage("Hardcore Challenger Can Not Be Loaded As Party Bot.");
         SetSentErrorMessage(true);
         return false;
     }

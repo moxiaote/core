@@ -231,6 +231,46 @@ void WorldSession::HandleSendMail(WorldPacket& recv_data)
         return;
     }
 
+    // Hardcore Challenger Can Not Mail
+    if (Player* pHardcoreChallengerSender = sObjectMgr.GetPlayer(pl->GetObjectGuid()))
+    {
+        if (sWorld.getConfig(CONFIG_HARDCORECHALLENGER_BAN_MAIL) == 1 && pHardcoreChallengerSender->GetLevel()<60 && pHardcoreChallengerSender->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+        {
+            SendMailResult(0, MAIL_SEND, MAIL_ERR_RECIPIENT_NOT_FOUND);
+            delete req;
+            return;
+        }
+    }
+
+    // Hardcore Challenger Can Not Be Mailed To
+    std::unique_ptr<QueryResult> hardcoreChallengerReceiverResult = CharacterDatabase.PQuery("SELECT `characters`.`guid` FROM `characters` LEFT JOIN `character_queststatus` ON `characters`.`guid` = `character_queststatus`.`guid` WHERE `characters`.`guid` = '%u' AND `characters`.`LEVEL` < 60 AND `character_queststatus`.`quest` = 10000 AND `character_queststatus`.`status` = 1 AND `character_queststatus`.`rewarded` = 1", req->receiver);
+    if (hardcoreChallengerReceiverResult)
+    {
+        if (sWorld.getConfig(CONFIG_HARDCORECHALLENGER_BAN_MAIL) == 1 && hardcoreChallengerReceiverResult->Fetch()[0].GetUInt32() == req->receiver)
+        {
+            SendMailResult(0, MAIL_SEND, MAIL_ERR_RECIPIENT_NOT_FOUND);
+            delete req;
+            return;
+        }
+    }
+
+    // Modification - trading in loot for two hours.
+    if (!req->itemGuid.IsEmpty())
+    {
+        if (Player* pPlayer = GetPlayer())
+        {
+            if (Item* it = pPlayer->GetItemByGuid(req->itemGuid))
+            {
+                if (it->GetLootingTime())
+                {
+                    SendMailResult(0, MAIL_SEND, MAIL_ERR_EQUIP_ERROR);
+                    delete req;
+                    return;
+                }
+            }
+        }
+    }
+
     req->receiverPtr = sObjectMgr.GetPlayer(req->receiver);
 
     if (req->receiverPtr)

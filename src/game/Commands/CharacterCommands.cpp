@@ -2042,7 +2042,14 @@ bool ChatHandler::HandleCharacterPremadeGearCommand(char* args)
         SendSysMessage(LANG_NO_CHAR_SELECTED);
         return false;
     }
-        
+
+    std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery("SELECT `account` FROM `characters` WHERE `guid` = '%u' and `name` = '%s'", sObjectMgr.GetPlayerGuidByName(pPlayer->GetName()).GetCounter(), pPlayer->GetName()));
+    if ((!pPlayer->IsBot() || result) && !m_session->GetPlayer()->IsGameMaster())
+    {
+        PSendSysMessage("Permission denied.");
+        return false;
+    }
+
     if (!*args)
     {
         PSendSysMessage("Listing available premade templates for %s:", pPlayer->GetName());
@@ -2141,6 +2148,12 @@ bool ChatHandler::HandleCharacterPremadeSpecCommand(char* args)
     if (!pPlayer)
     {
         SendSysMessage(LANG_NO_CHAR_SELECTED);
+        return false;
+    }
+
+    if (!pPlayer->IsBot() && !m_session->GetPlayer()->IsGameMaster())
+    {
+        PSendSysMessage("Permission denied.");
         return false;
     }
 
@@ -5896,4 +5909,29 @@ bool ChatHandler::HandleListExploredAreasCommand(char* args)
         }
     }
     return true;
+}
+
+//Dual Talent Specialization
+bool ChatHandler::HandleSwapSpec(char* /*args*/)
+{
+    if(m_session->GetPlayer()->HasItemCount(26001, 1))
+    {
+        uint32 res = m_session->GetPlayer()->SwapSpec();
+        switch (res) {
+            case 3: {
+                PSendSysMessage("Please try again later!");
+			    break;
+            }
+		    case 2: {
+			    PSendSysMessage("Level above 10 required.");
+			    break;
+		    }
+		    case 1: {
+                PSendSysMessage("Succeed!");
+			    break;
+		    }
+	    }
+	    return true;
+    }
+	return false;
 }

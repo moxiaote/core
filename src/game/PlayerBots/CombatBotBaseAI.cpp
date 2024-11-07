@@ -26,6 +26,14 @@ enum CombatBotSpells
     SPELL_MOONKIN_FORM = 24858,
     SPELL_LEADER_OF_THE_PACK = 17007,
 
+    SPELL_SUMMON_WATER_ELEMENTAL = 34065,
+    SPELL_SUMMON_ROGUE_KNIGHT = 34066,
+    SPELL_SUMMON_SPIRIT_BEAR = 34077,
+    SPELL_SUMMON_OBSIDIAN_DESTROYER = 34084,
+    SPELL_SUMMON_GOBLIN_SHREDDER = 34095,
+    SPELL_SUMMON_BONE_CLINCKZ = 34102,
+    SPELL_SUMMON_BANE = 34114,
+
     SPELL_SUMMON_IMP = 688,
     SPELL_SUMMON_VOIDWALKER = 697,
     SPELL_SUMMON_FELHUNTER = 691,
@@ -240,6 +248,12 @@ void CombatBotBaseAI::PopulateSpellData()
                 {
                     if (IsHigherRankSpell(pSealOfRighteousness))
                         pSealOfRighteousness = pSpellEntry;
+                }
+                else if (pSpellEntry->SpellName[0].find("Qu Zhu") != std::string::npos)
+                {
+                    if (!m_spells.paladin.pQuZhu ||
+                        m_spells.paladin.pQuZhu->Id < pSpellEntry->Id)
+                        m_spells.paladin.pQuZhu = pSpellEntry;
                 }
                 else if (pSpellEntry->SpellName[0].find("Seal of Command") != std::string::npos)
                 {
@@ -668,6 +682,18 @@ void CombatBotBaseAI::PopulateSpellData()
                     if (IsHigherRankSpell(pFrostArmor))
                         pFrostArmor = pSpellEntry;
                 }
+                else if (pSpellEntry->SpellName[0].find("A Tuo Si Zhi Gun") != std::string::npos)
+                {
+                    if (!m_spells.mage.pATuoSiZhiGun ||
+                        m_spells.mage.pATuoSiZhiGun->Id < pSpellEntry->Id)
+                        m_spells.mage.pATuoSiZhiGun = pSpellEntry;
+                }
+                else if (pSpellEntry->SpellName[0].find("Blink Dagger") != std::string::npos)
+                {
+                    if (!m_spells.mage.pBlinkDagger ||
+                        m_spells.mage.pBlinkDagger->Id < pSpellEntry->Id)
+                        m_spells.mage.pBlinkDagger = pSpellEntry;
+                }
                 else if (pSpellEntry->SpellName[0].find("Ice Barrier") != std::string::npos)
                 {
                     if (IsHigherRankSpell(m_spells.mage.pIceBarrier))
@@ -807,6 +833,12 @@ void CombatBotBaseAI::PopulateSpellData()
                     if (IsHigherRankSpell(m_spells.priest.pPowerWordFortitude))
                         m_spells.priest.pPowerWordFortitude = pSpellEntry;
                 }
+                else if (pSpellEntry->SpellName[0].find("Xu Ling Zhi Ren") != std::string::npos)
+                {
+                    if (!m_spells.priest.pXuLingZhiRen ||
+                        m_spells.priest.pXuLingZhiRen->Id < pSpellEntry->Id)
+                        m_spells.priest.pXuLingZhiRen = pSpellEntry;
+                }
                 else if (pSpellEntry->SpellName[0].find("Divine Spirit") != std::string::npos)
                 {
                     if (IsHigherRankSpell(m_spells.priest.pDivineSpirit))
@@ -935,6 +967,12 @@ void CombatBotBaseAI::PopulateSpellData()
                 {
                     if (IsHigherRankSpell(m_spells.warlock.pDemonArmor))
                         m_spells.warlock.pDemonArmor = pSpellEntry;
+                }
+                else if (pSpellEntry->SpellName[0].find("E Mo Fu Ti") != std::string::npos)
+                {
+                    if (!m_spells.warlock.pEMoFuTi ||
+                        m_spells.warlock.pEMoFuTi->Id < pSpellEntry->Id)
+                        m_spells.warlock.pEMoFuTi = pSpellEntry;
                 }
                 else if (pSpellEntry->SpellName[0].find("Death Coil") != std::string::npos)
                 {
@@ -2170,8 +2208,13 @@ bool CombatBotBaseAI::IsValidDispelTarget(Unit const* pTarget, SpellEntry const*
                                 if (FactionTemplateEntry const* ft2 = me->GetFactionTemplateEntry())
                                     if (charm->GetOriginalFactionTemplate()->IsFriendlyTo(*ft2))
                                         bFoundOneDispell = true;
-                    if (positive == friendly_dispel)
+                    if (positive == friendly_dispel || holder->GetSpellProto()->Id == 24321)
                         continue;
+                    if (Player const* pPlayerTarget = pTarget->ToPlayer())
+                    {
+                        if (!pPlayerTarget->IsBot() && holder->GetSpellProto()->Id == 16468)
+                            continue;
+                    }
                 }
                 bFoundOneDispell = true;
                 break;
@@ -2275,7 +2318,7 @@ Player* CombatBotBaseAI::SelectDispelTarget(SpellEntry const* pSpellEntry) const
 
 void CombatBotBaseAI::SummonPetIfNeeded()
 {
-    if (me->GetClass() == CLASS_HUNTER)
+    if (me->GetClass() == CLASS_HUNTER && sWorld.getConfig(CONFIG_HUNTER_BOT_SUMMON_PET) == 1)
     {
         if (me->GetCharmGuid())
             return;
@@ -2307,7 +2350,7 @@ void CombatBotBaseAI::SummonPetIfNeeded()
             me->CastSpell(pCreature, SPELL_TAME_BEAST, true);
         }
     }
-    else if (me->GetClass() == CLASS_WARLOCK)
+    else if (me->GetClass() == CLASS_WARLOCK && sWorld.getConfig(CONFIG_WARLOCK_BOT_SUMMON_PET) == 1)
     {
         if (me->GetPetGuid() || me->GetCharmGuid())
             return;
@@ -2323,6 +2366,48 @@ void CombatBotBaseAI::SummonPetIfNeeded()
             vSummons.push_back(SPELL_SUMMON_SUCCUBUS);
         if (!vSummons.empty())
             me->CastSpell(me, SelectRandomContainerElement(vSummons), true);
+    }
+    else if (me->GetClass() == CLASS_MAGE && sWorld.getConfig(CONFIG_MAGE_BOT_SUMMON_PET) == 1)
+    {
+        if (me->GetPetGuid() || me->GetCharmGuid())
+            return;
+        me->CastSpell(me, SPELL_SUMMON_WATER_ELEMENTAL, true);
+    }
+    else if (me->GetClass() == CLASS_PRIEST && sWorld.getConfig(CONFIG_PRIEST_BOT_SUMMON_PET) == 1)
+    {
+        if (me->GetPetGuid() || me->GetCharmGuid())
+            return;
+        me->CastSpell(me, SPELL_SUMMON_ROGUE_KNIGHT, true);
+    }
+    else if (me->GetClass() == CLASS_DRUID && sWorld.getConfig(CONFIG_DRUID_BOT_SUMMON_PET) == 1)
+    {
+        if (me->GetPetGuid() || me->GetCharmGuid())
+            return;
+        me->CastSpell(me, SPELL_SUMMON_SPIRIT_BEAR, true);
+    }
+    else if (me->GetClass() == CLASS_SHAMAN && sWorld.getConfig(CONFIG_SHAMAN_BOT_SUMMON_PET) == 1)
+    {
+        if (me->GetPetGuid() || me->GetCharmGuid())
+            return;
+        me->CastSpell(me, SPELL_SUMMON_OBSIDIAN_DESTROYER, true);
+    }
+    else if (me->GetClass() == CLASS_PALADIN && sWorld.getConfig(CONFIG_PALADIN_BOT_SUMMON_PET) == 1)
+    {
+        if (me->GetPetGuid() || me->GetCharmGuid())
+            return;
+        me->CastSpell(me, SPELL_SUMMON_GOBLIN_SHREDDER, true);
+    }
+    else if (me->GetClass() == CLASS_ROGUE && sWorld.getConfig(CONFIG_ROGUE_BOT_SUMMON_PET) == 1)
+    {
+        if (me->GetPetGuid() || me->GetCharmGuid())
+            return;
+        me->CastSpell(me, SPELL_SUMMON_BONE_CLINCKZ, true);
+    }
+    else if (me->GetClass() == CLASS_WARRIOR && sWorld.getConfig(CONFIG_WARRIOR_BOT_SUMMON_PET) == 1)
+    {
+        if (me->GetPetGuid() || me->GetCharmGuid())
+            return;
+        me->CastSpell(me, SPELL_SUMMON_BANE, true);
     }
 }
 

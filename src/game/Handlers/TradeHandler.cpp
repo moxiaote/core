@@ -32,6 +32,8 @@
 #include "Language.h"
 #include "Map.h"
 
+#include <regex>
+
 void WorldSession::SendTradeStatus(TradeStatus status)
 {
     WorldPacket data;
@@ -614,11 +616,25 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPacket& recvPacket)
         return;
     }
 
+    // Hardcore Challenger Can Not Trade Other
+    if (sWorld.getConfig(CONFIG_HARDCORECHALLENGER_BAN_TRADE) == 1 && GetPlayer()->GetLevel()<60 && GetPlayer()->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+    {
+        SendTradeStatus(TRADE_STATUS_BUSY);
+        return;
+    }
+
     Player* pOther = GetPlayer()->GetMap()->GetPlayer(otherGuid);
 
     if (!pOther)
     {
         SendTradeStatus(TRADE_STATUS_NO_TARGET);
+        return;
+    }
+
+    // Other Can Not Trade Hardcore Challenger
+    if (sWorld.getConfig(CONFIG_HARDCORECHALLENGER_BAN_TRADE) == 1 && pOther->GetLevel()<60 && pOther->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+    {
+        SendTradeStatus(TRADE_STATUS_BUSY);
         return;
     }
 
@@ -749,6 +765,34 @@ void WorldSession::HandleSetTradeItemOpcode(WorldPacket& recvPacket)
     if (my_trade->HasItem(item->GetObjectGuid()))
     {
         // cheating attempt
+        SendTradeStatus(TRADE_STATUS_TRADE_CANCELED);
+        return;
+    }
+
+    // Modification - trading in loot for two hours.
+    if (item->GetLootingTime() && item->GetLootingTime() + sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME) >= time(nullptr))
+    {
+        std::string raid_group = item->GetRaidGroup();
+        if (raid_group.size())
+        {
+            std::stringstream pattern;
+            pattern << ":" << my_trade->GetTrader()->GetGUIDLow() << ":";
+
+            std::regex rx(pattern.str().c_str());
+            if (!std::regex_search(raid_group, rx))
+            {
+                SendTradeStatus(TRADE_STATUS_TRADE_CANCELED);
+                return;
+            }
+        }
+        else
+        {
+            SendTradeStatus(TRADE_STATUS_TRADE_CANCELED);
+            return;
+        }
+    }
+    if (item->GetLootingTime() && item->GetLootingTime() + sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME) < time(nullptr))
+    {
         SendTradeStatus(TRADE_STATUS_TRADE_CANCELED);
         return;
     }

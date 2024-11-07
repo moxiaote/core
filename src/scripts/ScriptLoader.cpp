@@ -70,6 +70,15 @@ void AddSC_boss_nefarian();
 void AddSC_boss_victor_nefarius();
 void AddSC_instance_blackwing_lair();
 
+void AddSC_emerald_sanctum();                       //emerald_sanctum
+void AddSC_instance_emerald_sanctum();
+void AddSC_boss_dragon_knight_green();
+void AddSC_boss_dragon_knight_red();
+void AddSC_boss_dragon_knight_blue();
+
+void AddSC_yharnam();                               //yharnam
+void AddSC_instance_yharnam();
+
 void AddSC_deadmines();                              //deadmines
 void AddSC_instance_deadmines();
 void AddSC_boss_mr_smite();
@@ -308,6 +317,13 @@ void AddScripts()
     AddSC_boss_nefarian();
     AddSC_boss_victor_nefarius();
     AddSC_instance_blackwing_lair();
+    AddSC_emerald_sanctum();                                //emerald_sanctum
+    AddSC_instance_emerald_sanctum();
+    AddSC_boss_dragon_knight_green();
+    AddSC_boss_dragon_knight_red();
+    AddSC_boss_dragon_knight_blue();
+    AddSC_yharnam();                       //yharnam
+    AddSC_instance_yharnam();
     AddSC_deadmines();                                      //deadmines
     AddSC_instance_deadmines();
     AddSC_boss_mr_smite();

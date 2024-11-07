@@ -1115,8 +1115,6 @@ void Aura::TriggerSpell()
     uint32 auraId = auraSpellInfo->Id;
     Unit* target = GetTarget();
 
-    uint32 spellRandom;
-
     // not in banished state
     if (triggerTarget->HasUnitState(UNIT_STAT_ISOLATED))
         return;
@@ -1456,10 +1454,15 @@ void Aura::TriggerSpell()
         switch (auraId)
         {
             case 7054:
-                spellRandom = urand(0, 14) + 7038;
+            {
+                uint32 spellRandom = urand(0, 14) + 7038;
+                // spellRandom contains a random number from 7038 to 7052. But the available spells range from 7038 to 7051 and 7053. So we increase 7052 to 7053
+                if (spellRandom == 7052)
+                    spellRandom = 7053;
+
                 target->CastSpell(target, spellRandom, true, nullptr, this);
                 return;
-                break;
+            }
             case 8892:  // Goblin Rocket Boots
             case 13141: // Gnomish Rocket Boots
                 // FIXME: Confirm that the chance for rocket boots to explode in retail is actually meant to be 1% per-tick or 1/5 overall
@@ -1712,6 +1715,70 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
             {
                 switch (GetId())
                 {
+                    //Chromie's Belongings
+                    case 34187:
+                    {
+                        bool castspells = true;
+                        uint32 spells[7] = {24425,22888,34073,34072,34075,34074,34076};
+                        uint32 times[7] = {};
+                        if (Player* player = ToPlayer(GetCaster()))
+                        {
+                            for (int i = 0; i < 7; i++)
+                            {
+                                if (player->HasAura(spells[i]))
+                                {
+                                    castspells = false;
+                                    break;
+                                }
+                            }
+                            Aura* aura = NULL;
+                            SpellAuraHolder* auraH = NULL;
+                            std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("select spell_24425,spell_22888,spell_34073,spell_34072,spell_34075,spell_34074,spell_34076 from `character_chromie_belongings` where `guid` = %u", player->GetGUIDLow());
+                            if (castspells)
+                            {
+                                if (result)
+                                {
+                                    Field* fields = result->Fetch();
+                                    for (int i = 0; i < 7; i++)
+                                    {
+                                        if (fields[i].GetUInt32() != 0)
+                                        {
+                                            auraH = player->AddAura(spells[i], ADD_AURA_POSITIVE, player);
+                                            auraH->SetAuraDuration(fields[i].GetUInt32());
+                                            auraH->SetAuraMaxDuration(fields[i].GetUInt32());
+                                            auraH->RefreshHolder();
+                                        }
+                                    }
+                                    CharacterDatabase.PExecute("delete from `character_chromie_belongings` where `guid` = '%u'", player->GetGUIDLow());
+                                }
+                                else
+                                    player->GetSession()->SendAreaTriggerMessage("No Buffs stored.");
+                            }
+                            else
+                            {
+                                if (result)
+                                {
+                                    Field* fields = result->Fetch();
+                                    for (int i = 0; i < 7; i++)
+                                    {
+                                        times[i] = fields[i].GetUInt32();
+                                    }
+                                }
+                                for (int i = 0; i < 7; i++)
+                                {
+                                    if (aura = player->GetAura(spells[i], EFFECT_INDEX_0))
+                                    {
+                                        times[i] += aura->GetAuraDuration();
+                                        if (times[i] > 7200000)
+                                            times[i] = 7200000;
+                                        aura->GetHolder()->SetAuraMaxDuration(0);
+                                        aura->GetHolder()->RefreshHolder();
+                                    }
+                                }
+                                CharacterDatabase.PExecute("replace into `character_chromie_belongings` (`guid`, `spell_24425`, `spell_22888`, `spell_34073`, `spell_34072`, `spell_34075`, `spell_34074`, `spell_34076`) VALUES (%u, %u, %u, %u, %u, %u, %u, %u)", player->GetGUIDLow(), times[0], times[1], times[2], times[3], times[4], times[5], times[6]);
+                            }
+                        }
+                    }
                     case 2584:                              // Waiting to Resurrect
                     {
                         // for cases where aura would re-apply and player is no longer in BG
@@ -1802,7 +1869,10 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                         return;
                     }
                     case 16739: // Orb of Deception (before patch 1.7)
+                    {
                         return HandleAuraTransform(apply, Real);
+                    }
+                    case 21051: // Melodious Rapture Visual (DND)
                     case 21827: // Frostwolf Aura DND
                     case 21863: // Alterac Ram Aura DND
                     {
@@ -2685,7 +2755,14 @@ void Aura::HandleAuraModShapeshift(bool apply, bool Real)
                         }
                     }
                     if (target->GetPower(POWER_RAGE) > Rage_val)
+                    {
+                        if (target->HasAura(12296))
+                        {
+                            uint32 Life_val = (uint32)((target->GetPower(POWER_RAGE) - Rage_val) * target->GetMaxHealth() / target->GetMaxPower(POWER_RAGE) / 5);
+                            target->ModifyHealth(Life_val);
+                        }
                         target->SetPower(POWER_RAGE, Rage_val);
+                    }
                     break;
                 }
                 default:
@@ -4580,6 +4657,12 @@ float Aura::CalculateDotDamage() const
                     damage += caster->GetTotalAttackPowerValue(BASE_ATTACK) * cp / 100;
                 }
             }
+            // Rake
+            else if (spellProto->Id == 1822 || spellProto->Id == 1823 || spellProto->Id == 1824 || spellProto->Id == 9904)
+            {
+                // 0.03 * AP per trigger
+                damage = damage + (caster->GetTotalAttackPowerValue(BASE_ATTACK) * 0.03f);
+            }
 #endif
             break;
         }
@@ -6016,8 +6099,9 @@ void Aura::HandleSchoolAbsorb(bool apply, bool Real)
                     // Power Word: Shield
                     if (spellProto->IsFitToFamilyMask<CF_PRIEST_POWER_WORD_SHIELD>())
                     {
-                        //+10% from +healing bonus
-                        DoneActualBenefit = caster->SpellBaseHealingBonusDone(spellProto->GetSpellSchoolMask()) * 0.1f;
+                        // 10% coeff from healing bonus in vanilla
+                        // 100% coeff mod by jianggn
+                        DoneActualBenefit = caster->SpellBaseHealingBonusDone(spellProto->GetSpellSchoolMask()) * 1.0f + caster->SpellBaseDamageBonusDone(spellProto->GetSpellSchoolMask()) * 1.0f;
                         break;
                     }
                     break;
@@ -6036,6 +6120,13 @@ void Aura::HandleSchoolAbsorb(bool apply, bool Real)
                     {
                         //+10% from +spd bonus
                         DoneActualBenefit = caster->SpellBaseDamageBonusDone(spellProto->GetSpellSchoolMask()) * 0.1f;
+                        break;
+                    }
+                    // Voidwalker - Sacrifice
+                    if (spellProto->SpellIconID == 693)
+                    {
+                        //+100% from max health bonus
+                        DoneActualBenefit = caster->GetMaxHealth() * 1.0f;
                         break;
                     }
                     break;
@@ -6657,7 +6748,9 @@ void Aura::PeriodicDummyTick()
                 case 7054:
                 {
                     uint32 spellRandom = urand(0, 14) + 7038;
-                    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "7054 %u", spellRandom);
+                    // spellRandom contains a random number from 7038 to 7052. But the available spells range from 7038 to 7051 and 7053. So we increase 7052 to 7053
+                    if (spellRandom == 7052)
+                        spellRandom = 7053;
 
                     target->CastSpell(target, spellRandom, true, nullptr, this);
                     // Possibly need cast one of them (but
@@ -6702,6 +6795,18 @@ void Aura::PeriodicDummyTick()
                             target->CastSpell(target, 16334, true); // Summon Spiteful Phantom
                         else
                             target->CastSpell(target, 16335, true); // Summon Wrath Phantom
+                    }
+                    return;
+                }
+                case 21051: // Melodious Rapture Visual (DND)
+                {
+                    if (Creature* pRat = target->ToCreature())
+                    {
+                        if (pRat->GetMotionMaster()->GetCurrentMovementGeneratorType() != FOLLOW_MOTION_TYPE)
+                        {
+                            // lost track of player
+                            pRat->DespawnOrUnsummon(1);
+                        }
                     }
                     return;
                 }
@@ -6852,22 +6957,37 @@ void Aura::HandleManaShield(bool apply, bool Real)
     if (!Real)
         return;
 
+    Unit* caster = GetCaster();
+    if (!caster)
+        return;
+
+    Unit* target = GetTarget();
+    SpellEntry const* spellProto = GetSpellProto();
     // prevent double apply bonuses
-    if (apply && (GetTarget()->GetTypeId() != TYPEID_PLAYER || !((Player*)GetTarget())->GetSession()->PlayerLoading()))
+    if (apply && (target->GetTypeId() != TYPEID_PLAYER || !((Player*)target)->GetSession()->PlayerLoading()))
     {
-        if (Unit* caster = GetCaster())
+        float DoneActualBenefit = 0.0f;
+        switch (spellProto->SpellFamilyName)
         {
-            float DoneActualBenefit = 0.0f;
-
-            // Mana Shield
-            // 0% coeff in vanilla (changed patch 2.4.0)
-            // if (GetSpellProto()->IsFitToFamily<SPELLFAMILY_MAGE, CF_MAGE_MANA_SHIELD>())
-            //    DoneActualBenefit = caster->SpellBaseDamageBonusDone(GetSpellSchoolMask(GetSpellProto())) * 0.5f;
-
-            // DoneActualBenefit *= caster->CalculateLevelPenalty(GetSpellProto());
-
-            m_modifier.m_amount += DoneActualBenefit;
+            case SPELLFAMILY_MAGE:
+                // Mana Shield
+                if (spellProto->IsFitToFamilyMask<CF_MAGE_MANA_SHIELD>())
+                {
+                    // 0% coeff in vanilla (changed patch 2.4.0)
+                    // 200% coeff mod by jianggn
+                    DoneActualBenefit = caster->SpellBaseDamageBonusDone(spellProto->GetSpellSchoolMask()) * 2.0f;
+                    break;
+                }
+                break;
+            default:
+                break;
         }
+
+        DoneActualBenefit *= caster->CalculateLevelPenalty(GetSpellProto());
+
+        m_modifier.m_amount += DoneActualBenefit;
+
+        m_modifier.m_amount = dither(m_modifier.m_amount);
     }
 }
 

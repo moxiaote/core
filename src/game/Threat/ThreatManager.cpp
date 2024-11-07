@@ -101,6 +101,9 @@ void HostileReference::fireStatusChanged(ThreatRefStatusChangeEvent& pThreatRefS
 void HostileReference::addThreat(float pMod)
 {
     iThreat += pMod;
+    if (iThreat < 0)
+        iThreat = 0;
+
     // the threat is changed. Source and target unit have to be availabe
     // if the link was cut before relink it again
     if (!isOnline())
@@ -404,6 +407,56 @@ void ThreatManager::addThreat(Unit* pVictim, float threat, bool crit, SpellSchoo
     if (!pVictim->IsAlive() || !getOwner()->IsAlive())
         return;
 
+    // mod spell no threat
+    if (pThreatSpell && (pThreatSpell->Id == 34002 ||
+                         pThreatSpell->Id == 34011 ||
+                         pThreatSpell->Id == 34012 ||
+                         pThreatSpell->Id == 34013 ||
+                         pThreatSpell->Id == 34014 ||
+                         pThreatSpell->Id == 34015 ||
+                         pThreatSpell->Id == 34017 ||
+                         pThreatSpell->Id == 34020 ||
+                         pThreatSpell->Id == 34021 ||
+                         pThreatSpell->Id == 34022 ||
+                         pThreatSpell->Id == 34023 ||
+                         pThreatSpell->Id == 34024 ||
+                         pThreatSpell->Id == 34025 ||
+                         pThreatSpell->Id == 34026 ||
+                         pThreatSpell->Id == 34028 ||
+                         pThreatSpell->Id == 34037 ||
+                         pThreatSpell->Id == 34038 ||
+                         pThreatSpell->Id == 34039 ||
+                         pThreatSpell->Id == 34040 ||
+                         pThreatSpell->Id == 34041 ||
+                         pThreatSpell->Id == 34042 ||
+                         pThreatSpell->Id == 34048 ||
+                         pThreatSpell->Id == 34049 ||
+                         pThreatSpell->Id == 34060 ||
+                         pThreatSpell->Id == 34061 ||
+                         pThreatSpell->Id == 34062 ||
+                         pThreatSpell->Id == 34064 ||
+                         pThreatSpell->Id == 34068 ||
+                         pThreatSpell->Id == 34069 ||
+                         pThreatSpell->Id == 34090 ||
+                         pThreatSpell->Id == 34091 ||
+                         pThreatSpell->Id == 34099 ||
+                         pThreatSpell->Id == 34105 ||
+                         pThreatSpell->Id == 34107 ||
+                         pThreatSpell->Id == 34111 ||
+                         pThreatSpell->Id == 34112 ||
+                         pThreatSpell->Id == 34116 ||
+                         pThreatSpell->Id == 34117 ||
+                         pThreatSpell->Id == 34123 ||
+                         pThreatSpell->Id == 34125 ||
+                         pThreatSpell->Id == 34150 ||
+                         pThreatSpell->Id == 34171 ||
+                         pThreatSpell->Id == 34176 ||
+                         pThreatSpell->Id == 34194 ||
+                         pThreatSpell->Id == 34198 ||
+                         pThreatSpell->Id == 34200 ||
+                         pThreatSpell->Id == 34207))
+        return;
+    
     MANGOS_ASSERT(getOwner()->GetTypeId() == TYPEID_UNIT);
 
     // don't add assist threat to targets under hard CC
@@ -416,6 +469,15 @@ void ThreatManager::addThreat(Unit* pVictim, float threat, bool crit, SpellSchoo
             threat = 0.0f;
         }
     }
+
+    // Voidwalker - Torment : add 15% max health threat
+    if (pThreatSpell && (pThreatSpell->Id == 3716 ||
+                         pThreatSpell->Id == 7809 ||
+                         pThreatSpell->Id == 7810 ||
+                         pThreatSpell->Id == 7811 ||
+                         pThreatSpell->Id == 11774 ||
+                         pThreatSpell->Id == 11775))
+        threat = threat + pVictim->GetMaxHealth()*0.15;
 
     float totalThreat = ThreatCalcHelper::CalcThreat(pVictim, threat, crit, schoolMask, pThreatSpell);
     addThreatDirectly(pVictim, totalThreat, pThreatSpell && pThreatSpell->HasAttribute(SPELL_ATTR_EX_NO_THREAT));

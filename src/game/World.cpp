@@ -607,6 +607,35 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_BOOL_ALLOW_TWO_SIDE_WHO_LIST,            "AllowTwoSide.WhoList", false);
     setConfig(CONFIG_BOOL_ALLOW_TWO_SIDE_ADD_FRIEND,          "AllowTwoSide.AddFriend", false);
 
+    //Dual Talent Specialization
+    setConfig(CONFIG_SWAP_SPEC_INTERVAL,    "SwapSpecInterval", 900);
+
+    //Bot Summon Pet
+    setConfig(CONFIG_WARRIOR_BOT_SUMMON_PET,    "WarriorBotSummonPet",  1);
+    setConfig(CONFIG_PALADIN_BOT_SUMMON_PET,    "PaladinBotSummonPet",  1);
+    setConfig(CONFIG_HUNTER_BOT_SUMMON_PET,     "HunterBotSummonPet",   1);
+    setConfig(CONFIG_ROGUE_BOT_SUMMON_PET,      "RogueBotSummonPet",    1);
+    setConfig(CONFIG_PRIEST_BOT_SUMMON_PET,     "PriestBotSummonPet",   1);
+    setConfig(CONFIG_SHAMAN_BOT_SUMMON_PET,     "ShamanBotSummonPet",   1);
+    setConfig(CONFIG_MAGE_BOT_SUMMON_PET,       "MageBotSummonPet",     1);
+    setConfig(CONFIG_WARLOCK_BOT_SUMMON_PET,    "WarlockBotSummonPet",  1);
+    setConfig(CONFIG_DRUID_BOT_SUMMON_PET,      "DruidBotSummonPet",    1);
+
+    setConfig(CONFIG_BOT_HUNTER_PET_LOSE_HAPPINESS,    "BotHunterPetLoseHappiness",  0);
+    setConfig(CONFIG_BOT_ENVIRONMENTAL_DAMAGE,    "BotEnvironmentalDamage",  0);
+    setConfig(CONFIG_BOT_DURABILITY_POINTS_LOSS,    "BotDurabilityPointsLoss",  0);
+
+    setConfig(CONFIG_BOT_LOOT_MONEY,    "BotLootMoney",  0);
+    setConfig(CONFIG_BATTLE_BOT_QUEUED_MAX_COUNT,    "BattleBot.QueuedMaxCount",  0);
+
+    setConfig(CONFIG_UINT32_BUFF_JIEFUFUTI,    "Buff.JieFuFuTi",  99);
+
+    setConfig(CONFIG_HARDCORECHALLENGER_BAN_INVITE,    "HardcoreChallenger.Ban.Invite",  1);
+    setConfig(CONFIG_HARDCORECHALLENGER_BAN_PARTYBOT,    "HardcoreChallenger.Ban.PartyBot",  1);
+    setConfig(CONFIG_HARDCORECHALLENGER_BAN_TRADE,    "HardcoreChallenger.Ban.Trade",  1);
+    setConfig(CONFIG_HARDCORECHALLENGER_BAN_MAIL,    "HardcoreChallenger.Ban.Mail",  1);
+    setConfig(CONFIG_HARDCORECHALLENGER_BAN_AUCTION,    "HardcoreChallenger.Ban.Auction",  1);
+
     setConfig(CONFIG_UINT32_STRICT_PLAYER_NAMES,  "StrictPlayerNames",  0);
     setConfig(CONFIG_UINT32_STRICT_CHARTER_NAMES, "StrictCharterNames", 0);
     setConfig(CONFIG_UINT32_STRICT_PET_NAMES,     "StrictPetNames",     0);
@@ -651,6 +680,7 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_INSTANCE_RESET_TIME_HOUR, "Instance.ResetTimeHour", 4);
     setConfig(CONFIG_UINT32_INSTANCE_UNLOAD_DELAY,    "Instance.UnloadDelay", 30 * MINUTE * IN_MILLISECONDS);
     setConfig(CONFIG_UINT32_INSTANCE_PER_HOUR_LIMIT, "Instance.PerHourLimit", MAX_INSTANCE_PER_ACCOUNT_PER_HOUR);
+    setConfig(CONFIG_BOOL_INSTANCE_IGNORE_AQ_GATE, "Instance.IgnoreAQGate", true);
 
     setConfig(CONFIG_UINT32_MAX_PRIMARY_TRADE_SKILL, "MaxPrimaryTradeSkill", 2);
     setConfigMinMax(CONFIG_UINT32_MIN_PETITION_SIGNS, "MinPetitionSigns", 9, 0, 9);
@@ -1022,6 +1052,9 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_DYN_RESPAWN_PLAYERS_THRESHOLD, "DynamicRespawn.PlayersThreshold", 0);
     setConfig(CONFIG_UINT32_DYN_RESPAWN_PLAYERS_LEVELDIFF, "DynamicRespawn.PlayersMaxLevelDiff", 0);
 
+    //Modification - trading in loot for two hours.
+    setConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME, "TradingRaidLoot.Time", 7200);
+
     setConfig(CONFIG_UINT32_CHANNEL_INVITE_MIN_LEVEL, "ChannelInvite.MinLevel", 10);
     setConfig(CONFIG_BOOL_WHISPER_RESTRICTION, "WhisperRestriction", false);
     setConfig(CONFIG_UINT32_WORLD_CHAN_MIN_LEVEL, "WorldChan.MinLevel", 0);
@@ -1095,7 +1128,7 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_BOOL_UNLINKED_AUCTION_HOUSES, "Progression.UnlinkedAuctionHouses", true);
 
     // Movement Anticheat
-    setConfig(CONFIG_BOOL_AC_MOVEMENT_ENABLED, "Anticheat.Enable", true);
+    setConfig(CONFIG_BOOL_AC_MOVEMENT_ENABLED, "Anticheat.Enable", false);
     setConfig(CONFIG_BOOL_AC_MOVEMENT_PLAYERS_ONLY, "Anticheat.PlayersOnly", true);
     setConfig(CONFIG_BOOL_AC_MOVEMENT_NOTIFY_CHEATERS, "Anticheat.NotifyCheaters", false);
     setConfig(CONFIG_UINT32_AC_MOVEMENT_BAN_DURATION, "Anticheat.BanDuration", 86400);
@@ -1222,8 +1255,8 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_AC_MOVEMENT_CHEAT_BOTTING_PENALTY, "Anticheat.Botting.Penalty", CHEAT_ACTION_LOG | CHEAT_ACTION_REPORT_GMS);
 
     // Warden Anticheat
-    setConfig(CONFIG_BOOL_AC_WARDEN_WIN_ENABLED, "Warden.WinEnabled", true);
-    setConfig(CONFIG_BOOL_AC_WARDEN_OSX_ENABLED, "Warden.OSXEnabled", true);
+    setConfig(CONFIG_BOOL_AC_WARDEN_WIN_ENABLED, "Warden.WinEnabled", false);
+    setConfig(CONFIG_BOOL_AC_WARDEN_OSX_ENABLED, "Warden.OSXEnabled", false);
     setConfig(CONFIG_BOOL_AC_WARDEN_PLAYERS_ONLY, "Warden.PlayersOnly", false);
     setConfig(CONFIG_UINT32_AC_WARDEN_NUM_SCANS, "Warden.NumScans", 10);
     setConfig(CONFIG_UINT32_AC_WARDEN_CLIENT_RESPONSE_DELAY, "Warden.ClientResponseDelay", 30);
@@ -1823,6 +1856,9 @@ void World::SetInitialWorldSettings()
 
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Loading AH bot");
     sAuctionHouseBotMgr.Load();
+
+    sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Updating AH bot");
+    sAuctionHouseBotMgr.Update(true);
 
     sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Caching player phases (obsolete)");
     sObjectMgr.LoadPlayerPhaseFromDb();

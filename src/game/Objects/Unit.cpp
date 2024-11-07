@@ -784,7 +784,7 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
         }
     }
 
-    if (health <= damage && pVictim->GetInvincibilityHpThreshold() == 0)
+    if (health <= damage && pVictim->GetInvincibilityHpThreshold() == 0 && !pVictim->HasAura(34183))
     {
         DEBUG_FILTER_LOG(LOG_FILTER_DAMAGE, "DealDamage: victim just died");
         Kill(pVictim, spellProto, durabilityLoss);
@@ -807,7 +807,15 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
     {
         if (health > pVictim->GetInvincibilityHpThreshold())
         {
-            uint32 dmg = std::min<uint32>(health - pVictim->GetInvincibilityHpThreshold(), damage);
+            uint32 dmg;
+            if (pVictim->HasAura(34183))
+            {
+                dmg = std::min<uint32>(health - 1, damage);
+            }
+            else
+            {
+                dmg = std::min<uint32>(health - pVictim->GetInvincibilityHpThreshold(), damage);
+            }
             pVictim->ModifyHealth(-(int32)dmg);
         }
 
@@ -955,8 +963,13 @@ void Unit::Kill(Unit* pVictim, SpellEntry const* spellProto, bool durabilityLoss
             if (Player* recipient = pCreatureVictim->GetOriginalLootRecipient())
                 pPlayerTap = recipient;
             else if (ObjectGuid recipient = pCreatureVictim->GetLootRecipientGuid())
-                if (recipient.IsPet())
-                    pPlayerTap = nullptr;
+            {
+                if (recipient.IsPet() && IsPlayer() && static_cast<Player const*>(this)->IsControlledByOwnClient() && !static_cast<Player const*>(this)->IsBot())
+                {
+                    pPlayerTap = static_cast<Player*>(this);
+                    pCreatureVictim->SetLootRecipient(this);
+                }
+            }
             // Set correct pGroupTap if player entered a group
             if (pPlayerTap && !pGroupTap)
                 pGroupTap = pPlayerTap->GetGroup();
@@ -1724,6 +1737,26 @@ void Unit::TriggerDamageShields(Unit* pVictim)
             //damage-=absorb + resist;
 
             uint32 damage = ditheru(fdamage);
+
+            //JieFuFuTi(34001) taken damage
+            if (this->HasAura(34001))
+            {
+                uint32 jiefufuti = sWorld.getConfig(CONFIG_UINT32_BUFF_JIEFUFUTI);
+                if (jiefufuti > 99)
+                    jiefufuti = 99;
+                if (Player const* pPlayer = this->ToPlayer())
+                {
+                    if (pPlayer->GetLevel() < 60 && pPlayer->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+                        jiefufuti = 0;
+                }
+                if (Player* pOwner = ::ToPlayer(this->GetOwner()))
+                {
+                    if(pOwner->GetLevel() < 60 && pOwner->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+                        jiefufuti = 0;
+                }
+                damage = dither(damage * (100.0f - jiefufuti) / 100.0f);
+            }
+
             pVictim->DealDamageMods(this, damage, nullptr);
 
             WorldPacket data(SMSG_SPELLDAMAGESHIELD, (8 + 8 + 4 + 4));
@@ -2226,75 +2259,78 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst(Unit const* pVictim, WeaponAttackT
     //DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: skill bonus of %d for attacker", skillBonus);
     //DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: rolled %d, miss %d, dodge %d, parry %d, block %d, crit %d", roll, miss_chance, dodge_chance, parry_chance, block_chance, crit_chance);
 
-    tmp = miss_chance;
-
-    if (tmp > 0 && roll < (sum += tmp))
+    //Shaman - Monkey King Bar
+    if(!(IsPlayer() && HasAura(34131)))
     {
-        DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: MISS");
-        return MELEE_HIT_MISS;
-    }
+        tmp = miss_chance;
 
-    // always crit against a sitting target (except 0 crit chance)
-    if (pVictim->IsPlayer() && (crit_chance > 0 || IsCreature()) && !pVictim->IsStandingUp())
-    {
-        DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: CRIT (sitting victim)");
-        return MELEE_HIT_CRIT;
-    }
-
-    bool from_behind = !pVictim->HasInArc(this);
-
-    if (from_behind)
-        DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: attack came from behind.");
-
-    // Dodge chance
-
-    // only players can't dodge if attacker is behind
-    if (!pVictim->IsPlayer() || !from_behind)
-    {
-        dodge_chance -= dodgeSkillBonus;
-
-        // Low level reduction
-        if (!pVictim->IsPlayer() && pVictim->GetLevel() < 10)
-            dodge_chance *= pVictim->GetLevel() / 10.0f;
-
-        if (dodge_chance > 0 &&                         // check if unit _can_ dodge
-            (roll < (sum += dodge_chance)))
+        if (tmp > 0 && roll < (sum += tmp))
         {
-            DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: DODGE <%d, %d)", sum - tmp, sum);
-            return MELEE_HIT_DODGE;
+            DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: MISS");
+            return MELEE_HIT_MISS;
         }
-    }
 
-    // parry chances
-    // check if attack comes from behind, nobody can parry or block if attacker is behind
-    if (!from_behind && (parry_chance > 0))
-    {
-        if (pVictim->IsPlayer() || !((Creature*)pVictim)->HasExtraFlag(CREATURE_FLAG_EXTRA_NO_PARRY))
+        // always crit against a sitting target (except 0 crit chance)
+        if (pVictim->IsPlayer() && (crit_chance > 0 || IsCreature()) && !pVictim->IsStandingUp())
         {
-            parry_chance -= parrySkillBonus;
+            DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: CRIT (sitting victim)");
+            return MELEE_HIT_CRIT;
+        }
+
+        bool from_behind = !pVictim->HasInArc(this);
+
+        if (from_behind)
+            DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: attack came from behind.");
+
+        // Dodge chance
+
+        // only players can't dodge if attacker is behind
+        if (!pVictim->IsPlayer() || !from_behind)
+        {
+            dodge_chance -= dodgeSkillBonus;
 
             // Low level reduction
             if (!pVictim->IsPlayer() && pVictim->GetLevel() < 10)
-                parry_chance *= pVictim->GetLevel() / 10.0f;
+                dodge_chance *= pVictim->GetLevel() / 10.0f;
 
-            if (parry_chance > 0 &&                         // check if unit _can_ parry
-                    (roll < (sum += parry_chance)))
+            if (dodge_chance > 0 &&                         // check if unit _can_ dodge
+                (roll < (sum += dodge_chance)))
             {
-                DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: PARRY <%d, %d)", sum - parry_chance, sum);
-                return MELEE_HIT_PARRY;
+                DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: DODGE <%d, %d)", sum - tmp, sum);
+                return MELEE_HIT_DODGE;
             }
         }
-    }
 
-    // Max 40% chance to score a glancing blow against mobs that are higher level (can do only players and pets and not with ranged weapon)
-    if (attType != RANGED_ATTACK && !SpellCasted &&
-            (IsPlayer() || ((Creature*)this)->IsPet()) &&
-            !pVictim->IsPlayer() && !((Creature*)pVictim)->IsPet() && !((Creature*)pVictim)->IsTotem())
-    {
-        // cap possible value (with bonuses > max skill)
-        int32 skill = attackerWeaponSkill;
-        int32 maxskill = attackerMaxSkillValueForLevel;
-        skill = (skill > maxskill) ? maxskill : skill;
+        // parry chances
+        // check if attack comes from behind, nobody can parry or block if attacker is behind
+        if (!from_behind && (parry_chance > 0))
+        {
+            if (pVictim->IsPlayer() || !((Creature*)pVictim)->HasExtraFlag(CREATURE_FLAG_EXTRA_NO_PARRY))
+            {
+                parry_chance -= parrySkillBonus;
+
+                // Low level reduction
+                if (!pVictim->IsPlayer() && pVictim->GetLevel() < 10)
+                    parry_chance *= pVictim->GetLevel() / 10.0f;
+
+                if (parry_chance > 0 &&                         // check if unit _can_ parry
+                        (roll < (sum += parry_chance)))
+                {
+                    DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: PARRY <%d, %d)", sum - parry_chance, sum);
+                    return MELEE_HIT_PARRY;
+                }
+            }
+        }
+
+        // Max 40% chance to score a glancing blow against mobs that are higher level (can do only players and pets and not with ranged weapon)
+        if (attType != RANGED_ATTACK && !SpellCasted &&
+                (IsPlayer() || ((Creature*)this)->IsPet()) &&
+                !pVictim->IsPlayer() && !((Creature*)pVictim)->IsPet() && !((Creature*)pVictim)->IsTotem())
+        {
+            // cap possible value (with bonuses > max skill)
+            int32 skill = attackerWeaponSkill;
+            int32 maxskill = attackerMaxSkillValueForLevel;
+            skill = (skill > maxskill) ? maxskill : skill;
 
         // (Youfie) The +skill before BC does not reduce the frequency of glancing blows once it is equal to the player's level*5
         if (attackerWeaponSkill > maxskill)
@@ -2307,45 +2343,46 @@ MeleeHitOutcome Unit::RollMeleeOutcomeAgainst(Unit const* pVictim, WeaponAttackT
             tmp = 0;
         // sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "tmp = %i, Skill = %i, Max Skill = %i", tmp, attackerWeaponSkill, attackerMaxSkillValueForLevel); //For testing & debugging via the console
 
-        if (roll < (sum += tmp))
-        {
-            DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: GLANCING <%d, %d)", sum - 4000, sum);
-            return MELEE_HIT_GLANCING;
-        }
-    }
-
-    // block chances
-    // check if attack comes from behind, nobody can parry or block if attacker is behind
-    if (!from_behind && (block_chance > 0))
-    {
-        if ((pVictim->IsPlayer() || !((Creature*)pVictim)->HasExtraFlag(CREATURE_FLAG_EXTRA_NO_BLOCK))
-          && !(IsCreature() && GetMeleeDamageSchoolMask() != SPELL_SCHOOL_MASK_NORMAL))  // can't block elemental melee attacks from mobs
-        {
-            block_chance -= blockSkillBonus;
-
-            // mobs cannot block more than 5% of attacks regardless of rating difference
-            if (!pVictim->IsPlayer() && (block_chance > 500))
-                block_chance = 500;
-
-            // Low level reduction
-            if (!pVictim->IsPlayer() && pVictim->GetLevel() < 10)
-                block_chance *= pVictim->GetLevel() / 10.0f;
-
-            if (block_chance > 0 &&                         // check if unit _can_ block
-                (roll < (sum += block_chance)))
+            if (roll < (sum += tmp))
             {
-                // Critical chance
-                tmp = crit_chance;
-                if (IsPlayer() && SpellCasted && tmp > 0)
+                DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: GLANCING <%d, %d)", sum - 4000, sum);
+                return MELEE_HIT_GLANCING;
+            }
+        }
+
+        // block chances
+        // check if attack comes from behind, nobody can parry or block if attacker is behind
+        if (!from_behind && (block_chance > 0))
+        {
+            if ((pVictim->IsPlayer() || !((Creature*)pVictim)->HasExtraFlag(CREATURE_FLAG_EXTRA_NO_BLOCK))
+              && !(IsCreature() && GetMeleeDamageSchoolMask() != SPELL_SCHOOL_MASK_NORMAL))  // can't block elemental melee attacks from mobs
+            {
+                block_chance -= blockSkillBonus;
+
+                // mobs cannot block more than 5% of attacks regardless of rating difference
+                if (!pVictim->IsPlayer() && (block_chance > 500))
+                    block_chance = 500;
+
+                // Low level reduction
+                if (!pVictim->IsPlayer() && pVictim->GetLevel() < 10)
+                    block_chance *= pVictim->GetLevel() / 10.0f;
+
+                if (block_chance > 0 &&                         // check if unit _can_ block
+                    (roll < (sum += block_chance)))
                 {
-                    if (roll_chance_i(tmp / 100))
+                    // Critical chance
+                    tmp = crit_chance;
+                    if (IsPlayer() && SpellCasted && tmp > 0)
                     {
-                        sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "RollMeleeOutcomeAgainst: BLOCKED CRIT");
-                        return MELEE_HIT_BLOCK_CRIT;
+                        if (roll_chance_i(tmp / 100))
+                        {
+                            sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "RollMeleeOutcomeAgainst: BLOCKED CRIT");
+                            return MELEE_HIT_BLOCK_CRIT;
+                        }
                     }
+                    DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: BLOCK <%d, %d)", sum - tmp, sum);
+                    return MELEE_HIT_BLOCK;
                 }
-                DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "RollMeleeOutcomeAgainst: BLOCK <%d, %d)", sum - tmp, sum);
-                return MELEE_HIT_BLOCK;
             }
         }
     }
@@ -2775,6 +2812,26 @@ float Unit::GetUnitCriticalChance(WeaponAttackType attackType, Unit const* pVict
                 break;
         }
     }
+    else if (IsPet() && GetOwnerGuid().IsPlayer() && (GetEntry() == 200010 || GetEntry() == 1860 || GetEntry() == 1863 || GetEntry() == 417))
+    {
+        Player* pOwner = ::ToPlayer(GetOwner());
+        crit = pOwner->GetSpellCritPercent(SPELL_SCHOOL_HOLY) * 0.35 + GetTotalAuraModifier(SPELL_AURA_MOD_CRIT_PERCENT);
+    }
+    else if (IsPet() && GetOwnerGuid().IsPlayer() && (GetEntry() == 200011 || GetEntry() == 200013))
+    {
+        Player* pOwner = ::ToPlayer(GetOwner());
+        crit = pOwner->GetSpellCritPercent(SPELL_SCHOOL_HOLY) * 0.35 + pOwner->GetFloatValue(PLAYER_CRIT_PERCENTAGE) * 0.35 + GetTotalAuraModifier(SPELL_AURA_MOD_CRIT_PERCENT);
+    }
+    else if (IsPet() && GetOwnerGuid().IsPlayer() && (GetEntry() == 200014 || GetEntry() == 200015))
+    {
+        Player* pOwner = ::ToPlayer(GetOwner());
+        crit = pOwner->GetFloatValue(PLAYER_CRIT_PERCENTAGE) * 0.35 + GetTotalAuraModifier(SPELL_AURA_MOD_CRIT_PERCENT);
+    }
+    else if (IsPet() && GetOwnerGuid().IsPlayer() && (ToPet()->getPetType() == HUNTER_PET))
+    {
+        Player* pOwner = ::ToPlayer(GetOwner());
+        crit = pOwner->GetFloatValue(PLAYER_CRIT_PERCENTAGE) * 0.35 + GetTotalAuraModifier(SPELL_AURA_MOD_CRIT_PERCENT);
+    }
     else
     {
         crit = 5.0f;
@@ -3196,7 +3253,27 @@ float Unit::GetTotalAuraMultiplierByMiscMask(AuraType auratype, uint32 misc_mask
     {
         Modifier* mod = i->GetModifier();
         if (mod->m_miscvalue & misc_mask)
-            multiplier *= (100.0f + mod->m_amount) / 100.0f;
+        {
+            if (i->GetId() == 34001)
+            {
+                uint32 jiefufuti = sWorld.getConfig(CONFIG_UINT32_BUFF_JIEFUFUTI);
+                if (jiefufuti > 99)
+                    jiefufuti = 99;
+                if (Player const* pPlayer = ToPlayer())
+                {
+                    if (pPlayer->GetLevel() < 60 && pPlayer->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+                        jiefufuti = 0;
+                }
+                if (Player* pOwner = ::ToPlayer(GetOwner()))
+                {
+                    if(pOwner->GetLevel() < 60 && pOwner->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+                        jiefufuti = 0;
+                }
+                multiplier *= (100.0f - jiefufuti) / 100.0f;
+            }
+            else
+                multiplier *= (100.0f + mod->m_amount) / 100.0f;
+        }
     }
     return multiplier;
 }
@@ -3251,6 +3328,7 @@ bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
     }
 
     // passive and persistent auras can stack with themselves any number of times
+    //if (((!holder->IsPassive() && !holder->IsPersistent()) || holder->IsAreaAura()) && aurSpellInfo->Id != 34167 && aurSpellInfo->Id != 34169)
     if ((!holder->IsPassive() && !holder->IsPersistent()) || holder->IsAreaAura())
     {
         SpellAuraHolderBounds spair = GetSpellAuraHolderBounds(aurSpellInfo->Id);
@@ -4166,6 +4244,62 @@ Aura* Unit::GetAura(AuraType type, SpellFamily family, uint64 familyFlag, Object
             return i;
 
     return nullptr;
+}
+
+int32 Unit::HasAura_34140_34141_total() const
+{
+    int32 total = 0;
+    AuraList const& mTotalAuraList = GetAurasByType(SPELL_AURA_MOD_INCREASE_ENERGY);
+    for (const auto& i : mTotalAuraList)
+    {
+        if (i->GetId() == 34140)
+            total += 2;
+        else if (i->GetId() == 34141)
+            total += 4;
+    }
+    return total;
+}
+
+int32 Unit::HasAura_34142_34143_total() const
+{
+    int32 total = 0;
+    AuraList const& mTotalAuraList = GetAurasByType(SPELL_AURA_MOD_INCREASE_ENERGY);
+    for (const auto& i : mTotalAuraList)
+    {
+        if (i->GetId() == 34142)
+            total += 2;
+        else if (i->GetId() == 34143)
+            total += 4;
+    }
+    return total;
+}
+
+int32 Unit::HasAura_34155_34156_total() const
+{
+    int32 total = 0;
+    AuraList const& mTotalAuraList = GetAurasByType(SPELL_AURA_MOD_INCREASE_ENERGY_PERCENT);
+    for (const auto& i : mTotalAuraList)
+    {
+        if (i->GetId() == 34155)
+            total += 2;
+        else if (i->GetId() == 34156)
+            total += 4;
+    }
+    return total;
+}
+
+int32 Unit::HasAura_34165_34166_total() const
+{
+    int32 total = 0;
+    AuraList const& mTotalAuraList = GetAurasByType(SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE);
+    for (const auto& i : mTotalAuraList)
+    {
+        if (i->GetId() == 34165)
+            total += 1;
+        else if (i->GetId() == 34166)
+            total += 2;
+    }
+    return total;
 }
 
 bool Unit::HasAura(uint32 spellId, SpellEffectIndex effIndex) const
@@ -5352,6 +5486,11 @@ bool Unit::IsSpellCrit(Unit const* pVictim, SpellEntry const* spellProto, SpellS
                 // For other schools
                 else if (IsPlayer())
                     crit_chance = ((Player*)this)->GetSpellCritPercent(GetFirstSchoolInMask(schoolMask));
+                else if (IsPet() && GetOwnerGuid().IsPlayer() && (spellProto->Id == 34060 || spellProto->Id == 34061 || spellProto->Id == 3110 || spellProto->Id == 7799 || spellProto->Id == 7800 || spellProto->Id == 7801 || spellProto->Id == 7802 || spellProto->Id == 11762 || spellProto->Id == 11763 || spellProto->Id == 7814 || spellProto->Id == 7815 || spellProto->Id == 7816 || spellProto->Id == 11778 || spellProto->Id == 11779 || spellProto->Id == 11780 || spellProto->Id == 34085 || spellProto->Id == 34091))
+                {
+                    Player* pOwner = ::ToPlayer(GetOwner());
+                    crit_chance = pOwner->GetSpellCritPercent(GetFirstSchoolInMask(schoolMask)) * 0.35 + GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_SPELL_CRIT_CHANCE_SCHOOL, schoolMask);
+                }
                 else
                 {
                     crit_chance = float(m_baseSpellCritChance);
