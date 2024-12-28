@@ -414,6 +414,16 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
                             damage = 0;
                         break;
                     }
+                    case 34296: // Crusader Strike
+                    {
+                        float attackPower = m_casterUnit->GetTotalAttackPowerValue(BASE_ATTACK);
+                        if (unitTarget)
+                            attackPower += m_casterUnit->GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_MELEE_ATTACK_POWER_VERSUS, unitTarget->GetCreatureTypeMask());
+                        damage = damage * attackPower / 100;
+                        if (unitTarget->HasAura(21183) || unitTarget->HasAura(20188) || unitTarget->HasAura(20300) || unitTarget->HasAura(20301) || unitTarget->HasAura(20302) || unitTarget->HasAura(20303))
+                            damage = damage * 1.5f;
+                        break;
+                    }
                     case 24933:                             // Cannon (Darkmoon Steam Tonk)
                     {
                         m_caster->CastSpell(unitTarget, 27766, true);
@@ -584,6 +594,13 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
         if (damage >= 0)
             m_damage += damage;
     }
+}
+
+uint32 getTimestamp()
+{
+    time_t rawtime = time(NULL);
+    struct tm *timeinfo = localtime(&rawtime);
+    return mktime(timeinfo);
 }
 
 void Spell::EffectDummy(SpellEffectIndex effIdx)
@@ -809,6 +826,51 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                     // petdamage
                     if (static_cast<Player*>(m_caster)->GetPet())
                         static_cast<Player*>(m_caster)->CastCustomSpell(static_cast<Player*>(m_caster), 34282, static_cast<Player*>(m_caster)->HasAura_34165_34166_total(), {}, {}, true);
+                    return;
+                }
+                case 34294:
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    // Warlock Demonic Circle : Summon
+                    if (Player* pCaster = static_cast<Player*>(m_caster))
+                        CharacterDatabase.PExecute("replace into `character_warlock_demonic_circle` (`guid`, `map_id`, `instance_id`, `position_x`, `position_y`, `position_z`, `orientation`, `timer`) VALUES (%u, %u, %u, %f, %f, %f, %f, %u)", pCaster->GetObjectGuid(), pCaster->GetMapId(), pCaster->GetInstanceId(), pCaster->GetPositionX(), pCaster->GetPositionY(), pCaster->GetPositionZ(), pCaster->GetOrientation(), getTimestamp());
+                    return;
+                }
+                case 34295:
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    // Warlock Demonic Circle : Teleport
+                    if (Player* pCaster = static_cast<Player*>(m_caster))
+                    {
+                        std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT position_x, position_y, position_z, orientation FROM `character_warlock_demonic_circle` WHERE `guid`='%u' and `map_id`='%u' and `timer`>='%u' and `timer`<='%u' and `instance_id`='%u'", pCaster->GetObjectGuid(), pCaster->GetMapId(), getTimestamp()-300, getTimestamp(), pCaster->GetInstanceId());
+                        if (result)
+                        {
+                            Field* fields = result->Fetch();
+                            float x = fields[0].GetFloat();
+                            float y = fields[1].GetFloat();
+                            float z = fields[2].GetFloat();
+                            float o = fields[3].GetFloat();
+                            if (pCaster->GetDistance(x,y,z) <= 50.0f)
+                            {
+                                pCaster->TeleportTo(pCaster->GetMapId(), x, y, z, o);
+                                pCaster->CastSpell(pCaster, 5579, true);
+                            }
+                            else
+                            {
+                                auto cdCheck = [](SpellEntry const & spellEntry) -> bool { return ((spellEntry.Id == 34295) && spellEntry.GetRecoveryTime() > 0); };
+                                pCaster->RemoveSomeCooldown(cdCheck);
+                                pCaster->GetSession()->SendNotification("Teleport Failed : Demonic Circle Too Far");
+                            }
+                        }
+                        else
+                        {
+                            auto cdCheck = [](SpellEntry const & spellEntry) -> bool { return ((spellEntry.Id == 34295) && spellEntry.GetRecoveryTime() > 0); };
+                            pCaster->RemoveSomeCooldown(cdCheck);
+                            pCaster->GetSession()->SendNotification("Teleport Failed : No Available Demonic Circle");
+                        }
+                    }
                     return;
                 }
                 case 8344: // Universal Remote
@@ -2050,6 +2112,17 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                     static_cast<Player*>(m_caster)->RemoveSomeCooldown(cdCheck);
                     return;
                 }
+                case 781:
+                case 14272:
+                case 14273:
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    // Hunter Disengage
+                    if (Player* pCaster = static_cast<Player*>(m_caster))
+                        pCaster->KnockBackFrom(pCaster, 20.0f, 10.0f);
+                    return;
+                }
             }
             break;
         }
@@ -2501,6 +2574,20 @@ void Spell::EffectPowerDrain(SpellEffectIndex effIdx)
     //add spell damage bonus
     damage = m_caster->SpellDamageBonusDone(unitTarget, m_spellInfo, effIdx, damage, SPELL_DIRECT_DAMAGE, 1, this);
     damage = unitTarget->SpellDamageBonusTaken(m_caster, m_spellInfo, effIdx, damage, SPELL_DIRECT_DAMAGE, 1, this);
+
+    //JieFuFuTi(34001) - Warlock - Dark Pact
+    if (unitTarget->HasAura(34001) && (m_spellInfo->Id == 18220 || m_spellInfo->Id == 18937 || m_spellInfo->Id == 18938))
+    {
+        uint32 jiefufuti = sWorld.getConfig(CONFIG_UINT32_BUFF_JIEFUFUTI);
+        if (jiefufuti > 99)
+            jiefufuti = 99;
+        if (Player* pPlayer = ToPlayer(m_caster))
+        {
+            if(pPlayer->GetLevel() < 60 && pPlayer->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+                jiefufuti = 0;
+        }
+        damage = (100.0f / (100.0f - jiefufuti)) * damage;
+    }
 
     float new_damage;
     if (curPower < damage)
@@ -5725,34 +5812,34 @@ void Spell::EffectDuel(SpellEffectIndex effIdx)
     Player* target = (Player*)unitTarget;
 
     // if the caster is already in a duel or has issued a challenge
-    if (caster->duel && caster->duel->opponent != target)
+    if (caster->m_duel && caster->m_duel->opponent != target)
     {
-        if (caster->duel->startTime)
+        if (caster->m_duel->startTime)
             caster->DuelComplete(DUEL_WON);
         else
             caster->DuelComplete(DUEL_INTERRUPTED);
 
-       delete caster->duel;
-       delete target->duel;
-       caster->duel = target->duel = nullptr;
+       delete caster->m_duel;
+       delete target->m_duel;
+       caster->m_duel = target->m_duel = nullptr;
     }
 
     // if the caster attempts to duel somebody they're already in a duel with
-    if (caster->duel && caster->duel->opponent == target && caster->duel->startTime)
+    if (caster->m_duel && caster->m_duel->opponent == target && caster->m_duel->startTime)
     {
         SendCastResult(SPELL_FAILED_TARGET_ENEMY);
         return;
     }
 
     // if the target already has a pending duel/is dueling, reject the request
-    if (target->duel)
+    if (target->m_duel)
     {
         SendCastResult(SPELL_FAILED_TARGET_DUELING);
         return;
     }
 
     // caster or target already have requested duel
-    if (caster->duel || !target->GetSocial() || target->GetSocial()->HasIgnore(caster->GetObjectGuid()) || target->FindMap() != caster->FindMap())
+    if (caster->m_duel || !target->GetSocial() || target->GetSocial()->HasIgnore(caster->GetObjectGuid()) || target->FindMap() != caster->FindMap())
         return;
 
     // Players can only fight a duel with each other outside (=not inside dungeons and not in capital cities)
@@ -5805,13 +5892,13 @@ void Spell::EffectDuel(SpellEffectIndex effIdx)
     target->GetSession()->SendPacket(&data);
 
     // create duel-info
-    DuelInfo *duel   = new DuelInfo;
+    DuelInfo* duel   = new DuelInfo;
     duel->initiator  = caster;
     duel->opponent   = target;
     duel->startTime  = 0;
     duel->startTimer = 0;
 
-    DuelInfo *duel2   = new DuelInfo;
+    DuelInfo* duel2   = new DuelInfo;
     duel2->initiator  = caster;
     duel2->opponent   = caster;
     duel2->startTime  = 0;
@@ -5822,8 +5909,8 @@ void Spell::EffectDuel(SpellEffectIndex effIdx)
         duel->transportGuid  = t->GetGUIDLow();
         duel2->transportGuid = t->GetGUIDLow();
     }
-    caster->duel     = duel;
-    target->duel      = duel2;
+    caster->m_duel     = duel;
+    target->m_duel     = duel2;
 
     caster->SetGuidValue(PLAYER_DUEL_ARBITER, pGameObj->GetObjectGuid());
     target->SetGuidValue(PLAYER_DUEL_ARBITER, pGameObj->GetObjectGuid());
@@ -6613,10 +6700,7 @@ void Spell::EffectPlayerPull(SpellEffectIndex effIdx)
 
             // set immune anticheat and calculate speed
             if (Player* plr = unitTarget->ToPlayer())
-            {
                 plr->SetLaunched(true);
-                plr->SetXYSpeed(horizontalSpeed);
-            }
 
             unitTarget->KnockBack(angle, horizontalSpeed, verticalSpeed);
             break;

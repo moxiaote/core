@@ -365,8 +365,8 @@ Unit* PartyBotAI::SelectAttackTarget(Player* pLeader) const
 {
     if (IsInDuel())
     {
-        if (me->duel->opponent && IsValidHostileTarget(me->duel->opponent))
-            return me->duel->opponent;
+        if (me->m_duel->opponent && IsValidHostileTarget(me->m_duel->opponent))
+            return me->m_duel->opponent;
     }
     else
     {
@@ -1211,6 +1211,12 @@ void PartyBotAI::UpdateInCombatAI_Paladin()
                 if (DoCastSpell(pVictim, m_spells.paladin.pJudgement) == SPELL_CAST_OK)
                     return;
             }
+            if (m_spells.paladin.pShiZiJunDaJi &&
+                CanTryToCastSpell(pVictim, m_spells.paladin.pShiZiJunDaJi))
+            {
+                if (DoCastSpell(pVictim, m_spells.paladin.pShiZiJunDaJi) == SPELL_CAST_OK)
+                    return;
+            }
             if (m_spells.paladin.pHammerOfJustice &&
                (pVictim->IsNonMeleeSpellCasted() ||
                (me->GetHealthPercent() < 20.0f && !me->GetAttackers().empty())) &&
@@ -1318,7 +1324,7 @@ void PartyBotAI::UpdateOutOfCombatAI_Shaman()
         if (Pet* pPet = me->GetPet())
         {
             pPet->ToggleAutocast(34085, true);
-            if(!(me->GetMap()->IsRaid()))
+            if((sWorld.getConfig(CONFIG_PARTYBOT_ASTRALIMPRISONMENT_RAID) == 1) || !(me->GetMap()->IsRaid()))
             {
                 pPet->ToggleAutocast(34086, true);
             }
@@ -1359,7 +1365,7 @@ void PartyBotAI::UpdateInCombatAI_Shaman()
                 if (pPet->IsAlive())
                 {
                     pPet->ToggleAutocast(34085, true);
-                    if(!(me->GetMap()->IsRaid()))
+                    if((sWorld.getConfig(CONFIG_PARTYBOT_ASTRALIMPRISONMENT_RAID) == 1) || !(me->GetMap()->IsRaid()))
                     {
                         pPet->ToggleAutocast(34086, true);
                     }
@@ -2267,7 +2273,7 @@ void PartyBotAI::UpdateInCombatAI_Priest()
     {
         if (m_spells.priest.pXuLingZhiRen &&
             CanTryToCastSpell(pVictim, m_spells.priest.pXuLingZhiRen) &&
-            !(me->GetMap()->IsRaid()) &&
+            ((sWorld.getConfig(CONFIG_PARTYBOT_ETHEREALBLADE_RAID) == 1) || !(me->GetMap()->IsRaid())) &&
             (me->GetDistance(pVictim) < 30.0f) &&
             (pVictim->GetVictim() == me) &&
             !pVictim->HasAura(34019) &&
@@ -2276,7 +2282,7 @@ void PartyBotAI::UpdateInCombatAI_Priest()
             if (DoCastSpell(pVictim, m_spells.priest.pXuLingZhiRen) == SPELL_CAST_OK)
                 return;
         }
-        
+
         if (m_spells.priest.pShadowform &&
             CanTryToCastSpell(me, m_spells.priest.pShadowform))
         {
