@@ -6112,7 +6112,12 @@ void Aura::HandleSchoolAbsorb(bool apply, bool Real)
                     {
                         // 10% coeff from healing bonus in vanilla
                         // 100% coeff from healing and damage bonus mod by jianggn
+                        // Aphotic Shield bonus
                         DoneActualBenefit = caster->SpellBaseHealingBonusDone(spellProto->GetSpellSchoolMask()) * 1.0f + caster->SpellBaseDamageBonusDone(spellProto->GetSpellSchoolMask()) * 1.0f;
+                        if (caster->HasAura(34313))
+                            DoneActualBenefit += (caster->GetMaxHealth() + caster->GetMaxPower(POWER_MANA)) * 0.15f;
+                        else if (caster->HasAura(34314))
+                            DoneActualBenefit += (caster->GetMaxHealth() + caster->GetMaxPower(POWER_MANA)) * 0.3f;
                         break;
                     }
                     break;
@@ -7017,8 +7022,8 @@ void Aura::HandleManaShield(bool apply, bool Real)
                 if (spellProto->IsFitToFamilyMask<CF_MAGE_MANA_SHIELD>())
                 {
                     // 0% coeff in vanilla (changed patch 2.4.0)
-                    // 200% coeff mod by jianggn
-                    DoneActualBenefit = caster->SpellBaseDamageBonusDone(spellProto->GetSpellSchoolMask()) * 2.0f;
+                    // 100% coeff mod by jianggn
+                    DoneActualBenefit = caster->SpellBaseDamageBonusDone(spellProto->GetSpellSchoolMask()) * 1.0f;
                     break;
                 }
                 break;
