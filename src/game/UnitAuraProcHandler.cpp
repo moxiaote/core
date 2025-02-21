@@ -25,6 +25,7 @@
 #include "Player.h"
 #include "Spell.h"
 #include "SpellAuras.h"
+#include "SpellModifier.h"
 #include "SpellMgr.h"
 #include "Util.h"
 #include "World.h"
@@ -380,6 +381,10 @@ SpellProcEventTriggerCheck Unit::IsTriggeredAtSpellProcEvent(Unit* pVictim, Spel
             return SPELL_PROC_TRIGGER_FAILED;
     }
 
+    if (holder->GetAuraScript())
+        if (auto result = holder->GetAuraScript()->OnCheckProc(this, pVictim, holder, procSpell, procFlag, procExtra, attType, isVictim))
+            return result.value();
+
     // Get proc Event Entry
     spellProcEvent = sSpellMgr.GetSpellProcEvent(spellProto->Id);
 
@@ -661,7 +666,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     //  15 seconds.In addition, retaliatory strikes will not be possible
                     //  while stunned.
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_6_1
-                    if (HasUnitState(UNIT_STAT_CAN_NOT_REACT))
+                    if (HasUnitState(UNIT_STATE_CAN_NOT_REACT))
                         return SPELL_AURA_PROC_FAILED;
 #endif
 
@@ -975,6 +980,20 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     target = this;
                     triggered_spell_id = 34272;
                     break;                               // no hidden cooldown
+                }
+                // Ao Xue Zhan Yi
+                case 34327:
+                {
+                    if (this->HasUnitState(UNIT_STATE_STUNNED | UNIT_STATE_ROOT))
+                    {
+                        basepoints[0] = dither(this->GetMaxHealth() * 0.05f);
+                        basepoints[1] = 100;
+                        target = this;
+                        triggered_spell_id = 34328;
+                    }
+                    else
+                        return SPELL_AURA_PROC_FAILED;
+                    break;
                 }
                 // Obsidian Armor (Justice Bearer`s Pauldrons shoulder)
                 case 27539:

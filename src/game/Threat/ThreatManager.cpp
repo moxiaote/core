@@ -291,7 +291,7 @@ HostileReference* ThreatContainer::selectNextVictim(Creature* pAttacker, Hostile
     HostileReference* currentRef = nullptr;
     bool found = false;
     bool allowLowPriorityTargets = false;
-    bool attackerImmobilized = pAttacker->HasUnitState(UNIT_STAT_CAN_NOT_MOVE);
+    bool attackerImmobilized = pAttacker->HasUnitState(UNIT_STATE_CAN_NOT_MOVE);
 
     for (int attempt = 0; attempt < 2 && !found; ++attempt)
     {
@@ -462,7 +462,8 @@ void ThreatManager::addThreat(Unit* pVictim, float threat, bool crit, SpellSchoo
                          pThreatSpell->Id == 34307 ||
                          pThreatSpell->Id == 34308 ||
                          pThreatSpell->Id == 34309 ||
-                         pThreatSpell->Id == 34312))
+                         pThreatSpell->Id == 34312 ||
+                         pThreatSpell->Id == 34328))
         return;
     
     MANGOS_ASSERT(getOwner()->GetTypeId() == TYPEID_UNIT);
@@ -471,21 +472,21 @@ void ThreatManager::addThreat(Unit* pVictim, float threat, bool crit, SpellSchoo
     // check for fear, blind, freezing trap, reckless charge, banish, etc.
     if (isAssistThreat)
     {
-        if (getOwner()->HasUnitState(UNIT_STAT_CONFUSED | UNIT_STAT_FLEEING | UNIT_STAT_ISOLATED) ||
-            (getOwner()->HasUnitState(UNIT_STAT_STUNNED) && getOwner()->HasBreakableByDamageAuraType(SPELL_AURA_MOD_STUN, 0)))
+        if (getOwner()->HasUnitState(UNIT_STATE_CONFUSED | UNIT_STATE_FLEEING | UNIT_STATE_ISOLATED) ||
+            (getOwner()->HasUnitState(UNIT_STATE_STUNNED) && getOwner()->HasBreakableByDamageAuraType(SPELL_AURA_MOD_STUN, 0)))
         {
             threat = 0.0f;
         }
     }
 
-    // Voidwalker - Torment : add 15% max health threat
+    // Voidwalker - Torment : add 12.5% max health threat
     if (pThreatSpell && (pThreatSpell->Id == 3716 ||
                          pThreatSpell->Id == 7809 ||
                          pThreatSpell->Id == 7810 ||
                          pThreatSpell->Id == 7811 ||
                          pThreatSpell->Id == 11774 ||
                          pThreatSpell->Id == 11775))
-        threat = threat + pVictim->GetMaxHealth()*0.15;
+        threat = threat + pVictim->GetMaxHealth()*0.125;
 
     float totalThreat = ThreatCalcHelper::CalcThreat(pVictim, threat, crit, schoolMask, pThreatSpell);
     addThreatDirectly(pVictim, totalThreat, pThreatSpell && pThreatSpell->HasAttribute(SPELL_ATTR_EX_NO_THREAT));
