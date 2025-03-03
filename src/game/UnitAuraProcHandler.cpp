@@ -858,6 +858,17 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                         triggered_spell_id = 34011;
                     break;                               // no hidden cooldown
                 }
+                // Druid: Starscourge
+                case 34351:
+                {
+                    if (this->GetTypeId() != TYPEID_PLAYER)
+                        return SPELL_AURA_PROC_FAILED;
+                    if (!pVictim)
+                        return SPELL_AURA_PROC_FAILED;
+                    target = pVictim;
+                    triggered_spell_id = 34352;
+                    break;                               // no hidden cooldown
+                }
                 // Shaman: thundercloud
                 case 34206:
                 {
@@ -898,6 +909,33 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     basepoints[0] = dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34125;
+                    break;                               // no hidden cooldown
+                }
+                // Paladin - Passion
+                case 34357:
+                {
+                    if (this->GetTypeId() != TYPEID_PLAYER)
+                        return SPELL_AURA_PROC_FAILED;
+                    auto cdCheck = [](SpellEntry const & spellEntry) -> bool { return (spellEntry.SpellFamilyName == SPELLFAMILY_PALADIN && spellEntry.SpellFamilyFlags == 0x200000 && spellEntry.GetRecoveryTime() > 0); };
+                    static_cast<Player*>(this)->RemoveSomeCooldown(cdCheck);
+                    return SPELL_AURA_PROC_OK;
+                }
+                // Paladin - Incandescence
+                case 34353:
+                {
+                    if (this->GetTypeId() != TYPEID_PLAYER)
+                        return SPELL_AURA_PROC_FAILED;
+                    auto cdCheck = [](SpellEntry const & spellEntry) -> bool { return ((spellEntry.Id == 34296) && spellEntry.GetRecoveryTime() > 0); };
+                    static_cast<Player*>(this)->RemoveSomeCooldown(cdCheck);
+                    return SPELL_AURA_PROC_OK;
+                }
+                // Druid - Newborn
+                case 34346:
+                {
+                    // mana amount
+                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34347;
                     break;                               // no hidden cooldown
                 }
                 // Hunter - Synergy - Rank1
@@ -1214,7 +1252,20 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     if (basepoints[0] < 1)
                         basepoints[0] = 1;
 
-                    pVictim->CastCustomSpell(pVictim, 15290, basepoints[0], {}, {}, true, castItem, triggeredByAura);
+                    // 34341 - Shadow Distortion
+                    if (pVictim->HasAura(34341))
+                    {
+                        // mana amount
+                        basepoints[1] = dither(amount / 20);
+                        if (basepoints[1] < 1)
+                            basepoints[1] = 1;
+                        pVictim->CastCustomSpell(pVictim, 34342, basepoints[0], basepoints[1], {}, true, castItem, triggeredByAura);
+                    }
+                    else
+                    {
+                        pVictim->CastCustomSpell(pVictim, 15290, basepoints[0], {}, {}, true, castItem, triggeredByAura);
+                    }
+
                     return SPELL_AURA_PROC_OK;                                // no hidden cooldown
                 }
                 // Oracle Healing Bonus ("Garments of the Oracle" set)
@@ -1809,9 +1860,18 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(Unit* pVictim, uint32 a
                     uint32 originalSpellId;
                     switch (procSpell->Id)
                     {
-                        case 25914: originalSpellId = 20473; break;
-                        case 25913: originalSpellId = 20929; break;
-                        case 25903: originalSpellId = 20930; break;
+                        case 25914:
+                        case 25912:
+                            originalSpellId = 20473;
+                            break;
+                        case 25913:
+                        case 25911:
+                            originalSpellId = 20929;
+                            break;
+                        case 25903:
+                        case 25902:
+                            originalSpellId = 20930;
+                            break;
                         default:
                             sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Unit::HandleProcTriggerSpell: Spell %u not handled in HShock", procSpell->Id);
                             return SPELL_AURA_PROC_FAILED;

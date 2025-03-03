@@ -783,7 +783,7 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
         }
     }
 
-    if (health <= damage && pVictim->GetInvincibilityHpThreshold() == 0 && !pVictim->HasAura(34183) && !pVictim->HasAura(34333))
+    if (health <= damage && pVictim->GetInvincibilityHpThreshold() == 0 && !pVictim->HasAura(34183) && !pVictim->HasAura(34333) && !pVictim->HasAura(34344))
     {
         DEBUG_FILTER_LOG(LOG_FILTER_DAMAGE, "DealDamage: victim just died");
         Kill(pVictim, spellProto, durabilityLoss);
@@ -807,7 +807,7 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
         if (health > pVictim->GetInvincibilityHpThreshold())
         {
             uint32 dmg;
-            if (pVictim->HasAura(34183) || pVictim->HasAura(34333))
+            if (pVictim->HasAura(34183) || pVictim->HasAura(34333) || pVictim->HasAura(34344))
             {
                 dmg = std::min<uint32>(health - 1, damage);
             }
@@ -5218,8 +5218,12 @@ void Unit::Uncharm()
     if (Unit* charm = GetCharm())
     {
         charm->RemoveCharmAuras();
+
         // Pet posses is not a typical charm
         charm->RemoveSpellsCausingAura(SPELL_AURA_MOD_POSSESS_PET);
+
+        // This effect uses a dummy on the caster
+        RemoveSummonPossessedAuras();
     }
 }
 
@@ -5228,6 +5232,22 @@ void Unit::RemoveCharmAuras(AuraRemoveMode mode)
     RemoveSpellsCausingAura(SPELL_AURA_MOD_POSSESS, mode);
     RemoveSpellsCausingAura(SPELL_AURA_MOD_CHARM, mode);
     RemoveSpellsCausingAura(SPELL_AURA_AOE_CHARM, mode);
+}
+
+void  Unit::RemoveSummonPossessedAuras(AuraRemoveMode mode)
+{
+    // these spells use dummy aura
+    for (AuraList::const_iterator iter = m_modAuras[SPELL_AURA_DUMMY].begin(); iter != m_modAuras[SPELL_AURA_DUMMY].end();)
+    {
+        if (!(*iter)->GetSpellProto()->HasEffect(SPELL_EFFECT_SUMMON_POSSESSED))
+        {
+            ++iter;
+            continue;
+        }
+
+        RemoveAurasDueToSpell((*iter)->GetId(), nullptr, mode);
+        iter = m_modAuras[SPELL_AURA_DUMMY].begin();
+    }
 }
 
 void Unit::SetPet(Pet* pet)
@@ -7624,8 +7644,10 @@ void Unit::SetDeathState(DeathState s)
         }
 
         RemoveAllAurasOnDeath();
-        UnsummonAllTotems();
-
+        // Only unsummon totems for non-creature units (creature-owned totems should persist)
+        if (GetTypeId() != TYPEID_UNIT)
+            UnsummonAllTotems();
+            
         m_motionMaster.Clear(false, true);
         m_motionMaster.MoveIdle();
 
