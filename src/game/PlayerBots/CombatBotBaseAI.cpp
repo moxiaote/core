@@ -416,6 +416,11 @@ void CombatBotBaseAI::PopulateSpellData()
                     if (IsHigherRankSpell(m_spells.paladin.pHolyShield))
                         m_spells.paladin.pHolyShield = pSpellEntry;
                 }
+                else if (pSpellEntry->SpellName[0].find("Repentance") != std::string::npos)
+                {
+                    if (IsHigherRankSpell(m_spells.paladin.pRepentance))
+                        m_spells.paladin.pRepentance = pSpellEntry;
+                }
                 break;
             }
             case CLASS_SHAMAN:
@@ -844,6 +849,11 @@ void CombatBotBaseAI::PopulateSpellData()
                 {
                     if (IsHigherRankSpell(m_spells.mage.pCombustion))
                         m_spells.mage.pCombustion = pSpellEntry;
+                }
+                else if (pSpellEntry->SpellName[0].find("Detect Magic") != std::string::npos)
+                {
+                    if (IsHigherRankSpell(m_spells.mage.pDetectMagic))
+                        m_spells.mage.pDetectMagic = pSpellEntry;
                 }
                 break;
             }
@@ -1408,6 +1418,11 @@ void CombatBotBaseAI::PopulateSpellData()
                     if (IsHigherRankSpell(m_spells.rogue.pSprint))
                         m_spells.rogue.pSprint = pSpellEntry;
                 }
+                else if (pSpellEntry->SpellName[0].find("Smoke Bomb") != std::string::npos)
+                {
+                    if (IsHigherRankSpell(m_spells.rogue.pSmokeBomb))
+                        m_spells.rogue.pSmokeBomb = pSpellEntry;
+                }
                 else if (pSpellEntry->SpellName[0].find("Deadly Poison") != std::string::npos)
                 {
                     hasDeadlyPoison = true;
@@ -1546,6 +1561,11 @@ void CombatBotBaseAI::PopulateSpellData()
                 {
                     if (IsHigherRankSpell(m_spells.druid.pHibernate))
                         m_spells.druid.pHibernate = pSpellEntry;
+                }
+                else if (pSpellEntry->SpellName[0].find("Omen of Clarity") != std::string::npos)
+                {
+                    if (IsHigherRankSpell(m_spells.druid.pOmenOfClarity))
+                        m_spells.druid.pOmenOfClarity = pSpellEntry;
                 }
                 else if (pSpellEntry->SpellName[0].find("Pounce") != std::string::npos)
                 {

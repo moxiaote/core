@@ -285,7 +285,7 @@ public:
     {
         struct
         {
-            SpellEntry const* spells[45];
+            SpellEntry const* spells[50];
         } raw;
         struct
         {
@@ -311,6 +311,7 @@ public:
             SpellEntry const* pHolyWrath;
             SpellEntry const* pTurnEvil;
             SpellEntry const* pHolyShield;
+            SpellEntry const* pRepentance;
         } paladin;
         struct
         {
@@ -383,6 +384,7 @@ public:
             SpellEntry const* pBlizzard;
             SpellEntry const* pBlastWave;
             SpellEntry const* pCombustion;
+            SpellEntry const* pDetectMagic;
         } mage;
         struct
         {
@@ -508,6 +510,7 @@ public:
             SpellEntry const* pSprint;
             SpellEntry const* pMainHandPoison;
             SpellEntry const* pOffHandPoison;
+            SpellEntry const* pSmokeBomb;
         } rogue;
         struct
         {
@@ -535,6 +538,7 @@ public:
             SpellEntry const* pNaturesSwiftness;
             SpellEntry const* pEntanglingRoots;
             SpellEntry const* pHibernate;
+            SpellEntry const* pOmenOfClarity;
             // Cat
             SpellEntry const* pProwl;
             SpellEntry const* pPounce;
