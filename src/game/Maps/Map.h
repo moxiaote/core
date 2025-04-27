@@ -47,6 +47,7 @@
 
 using Movement::Vector3;
 
+struct AreaTriggerEntry;
 struct CreatureInfo;
 class Creature;
 class Unit;
@@ -95,7 +96,7 @@ struct MapEntry
     bool Instanceable() const { return mapType == MAP_INSTANCE || mapType == MAP_RAID || mapType == MAP_BATTLEGROUND; }
     bool IsRaid() const { return mapType == MAP_RAID; }
     bool IsBattleGround() const { return mapType == MAP_BATTLEGROUND; }
-    bool IsMountAllowed() const { return !IsDungeon() || id == MAP_ZUL_GURUB || id == MAP_ZUL_FARRAK || id == MAP_AHN_QIRAJ_RUINS || id == MAP_CAVERNS_OF_TIME; }
+    bool IsMountAllowed() const { return !IsDungeon() || id == MAP_ZUL_GURUB || id == MAP_ZUL_FARRAK || id == MAP_AHN_QIRAJ_RUINS || id == MAP_CAVERNS_OF_TIME || id == MAP_AZSHARA_CRATER || id == 542 || id == 543 || id == 544 || id == 545 || id == 546; }
     bool IsContinent() const { return id == 0 || id == 1; }
 };
 
@@ -486,6 +487,8 @@ class Map : public GridRefManager<NGridType>
         bool ScriptCommandStartDirect(ScriptInfo const& script, WorldObject* source, WorldObject* target);
         // Removes all parts of script from the queue.
         void TerminateScript(ScriptAction const& step);
+        // Checks cooldown and starts script from areatrigger_scripts table.
+        void StartAreaTriggerScript(AreaTriggerEntry const* pTrigger, Player* pPlayer);
 
         // must called with AddToWorld
         void AddToActive(WorldObject* obj);
@@ -721,6 +724,7 @@ class Map : public GridRefManager<NGridType>
         typedef std::multimap<time_t, ScriptAction> ScriptScheduleMap;
         mutable MapMutexType      m_scriptSchedule_lock;
         ScriptScheduleMap m_scriptSchedule;
+        std::unordered_map<uint32, time_t> m_areaTriggerCooldowns;
 
         InstanceData* m_data = nullptr;
         uint32 m_scriptId = 0;

@@ -2823,25 +2823,25 @@ float Unit::GetUnitCriticalChance(WeaponAttackType attackType, Unit const* pVict
     }
     else if (IsPet() && GetOwnerGuid().IsPlayer() && (GetEntry() == 200010 || GetEntry() == 1860 || GetEntry() == 1863 || GetEntry() == 417))
     {
-        crit = 10.0f;
+        crit = 4.0f;
         Player* pOwner = ::ToPlayer(GetOwner());
         crit += pOwner->GetSpellCritPercent(SPELL_SCHOOL_HOLY) * 0.35 + GetTotalAuraModifier(SPELL_AURA_MOD_CRIT_PERCENT);
     }
     else if (IsPet() && GetOwnerGuid().IsPlayer() && (GetEntry() == 200011 || GetEntry() == 200013))
     {
-        crit = 5.0f;
+        crit = 2.0f;
         Player* pOwner = ::ToPlayer(GetOwner());
         crit += pOwner->GetSpellCritPercent(SPELL_SCHOOL_HOLY) * 0.35 + pOwner->GetFloatValue(PLAYER_CRIT_PERCENTAGE) * 0.35 + GetTotalAuraModifier(SPELL_AURA_MOD_CRIT_PERCENT);
     }
     else if (IsPet() && GetOwnerGuid().IsPlayer() && (GetEntry() == 200014 || GetEntry() == 200015))
     {
-        crit = 5.0f;
+        crit = 3.0f;
         Player* pOwner = ::ToPlayer(GetOwner());
         crit += pOwner->GetFloatValue(PLAYER_CRIT_PERCENTAGE) * 0.35 + GetTotalAuraModifier(SPELL_AURA_MOD_CRIT_PERCENT);
     }
     else if (IsPet() && GetOwnerGuid().IsPlayer() && (ToPet()->getPetType() == HUNTER_PET))
     {
-        crit = 10.0f;
+        crit = 5.0f;
         Player* pOwner = ::ToPlayer(GetOwner());
         crit += pOwner->GetFloatValue(PLAYER_CRIT_PERCENTAGE) * 0.35 + GetTotalAuraModifier(SPELL_AURA_MOD_CRIT_PERCENT);
     }
@@ -3809,6 +3809,14 @@ bool Unit::RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder)
                 sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "SpellAuraHolder (Spell %u) is in process but attempt removed at SpellAuraHolder (Spell %u) adding, need add stack rule for Unit::RemoveNoStackAurasDueToAuraHolder", i.second->GetId(), holder->GetId());
                 continue;
             }
+
+            // 20142 - Improved Devotion Aura - rank 5
+            if (spellId_spec == SPELL_AURA && i_spellId_spec == SPELL_AURA)
+                if (Player *pPlayer = holder->GetCaster()->ToPlayer())
+                    if (pPlayer->HasAura(20142))
+                        if ((spellProto->IsFitToFamily<SPELLFAMILY_PALADIN, CF_PALADIN_DEVOTION_AURA>() && !i_spellProto->IsFitToFamily<SPELLFAMILY_PALADIN, CF_PALADIN_DEVOTION_AURA>()) || (!spellProto->IsFitToFamily<SPELLFAMILY_PALADIN, CF_PALADIN_DEVOTION_AURA>() && i_spellProto->IsFitToFamily<SPELLFAMILY_PALADIN, CF_PALADIN_DEVOTION_AURA>()))
+                            continue;
+
             sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "[STACK][%u/%u] SpellSpecPerTarget ou SpellSpecPerCaster", spellId, i_spellId);
             aurasToRemove.emplace_back(i_spellId, i.second->GetCasterGuid());
             continue;
@@ -4384,9 +4392,9 @@ int32 Unit::HasAura_34165_34166_total() const
     for (const auto& i : mTotalAuraList)
     {
         if (i->GetId() == 34165)
-            total += 1;
-        else if (i->GetId() == 34166)
             total += 2;
+        else if (i->GetId() == 34166)
+            total += 4;
     }
     return total;
 }
@@ -5602,7 +5610,7 @@ bool Unit::IsSpellCrit(Unit const* pVictim, SpellEntry const* spellProto, SpellS
                 else if (IsPet() && GetOwnerGuid().IsPlayer() && (spellProto->Id == 34060 || spellProto->Id == 34061 || spellProto->Id == 3110 || spellProto->Id == 7799 || spellProto->Id == 7800 || spellProto->Id == 7801 || spellProto->Id == 7802 || spellProto->Id == 11762 || spellProto->Id == 11763 || spellProto->Id == 7814 || spellProto->Id == 7815 || spellProto->Id == 7816 || spellProto->Id == 11778 || spellProto->Id == 11779 || spellProto->Id == 11780 || spellProto->Id == 34085 || spellProto->Id == 34091))
                 {
                     Player* pOwner = ::ToPlayer(GetOwner());
-                    critChance = pOwner->GetSpellCritPercent(GetFirstSchoolInMask(schoolMask)) * 0.35 + GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_SPELL_CRIT_CHANCE_SCHOOL, schoolMask);
+                    critChance = pOwner->GetSpellCritPercent(GetFirstSchoolInMask(schoolMask)) * 0.35 + GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_SPELL_CRIT_CHANCE_SCHOOL, schoolMask) + 5.0f;
                 }
                 else
                     critChance = GetSpellCritPercent(GetFirstSchoolInMask(schoolMask));
