@@ -989,7 +989,7 @@ void Player::OnMirrorTimerExpirationPulse(MirrorTimer::Type timer)
             EnvironmentalDamage(DAMAGE_DROWNING, ((GetMaxHealth() / 5) + urand(0, (GetLevel() - 1))));
             break;
         case MirrorTimer::ENVIRONMENTAL:
-            if (IsInMagma())
+            if (IsInMagma() && m_zoneUpdateId != 718)
                 EnvironmentalDamage(DAMAGE_LAVA, urand(sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MIN), sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MAX)));
             // FIXME: Need to skip slime damage in Undercity, maybe someone can find better way to handle environmental damage
             //if (IsInSlime() && m_zoneUpdateId != 1497 && m_zoneUpdateId != 3456)
@@ -6391,7 +6391,10 @@ void Player::CheckAreaExploreAndOutdoor()
         }
     }
     else if (sWorld.getConfig(CONFIG_BOOL_VMAP_INDOOR_CHECK) && !IsGameMaster())
-        RemoveAurasWithAttribute(SPELL_ATTR_ONLY_OUTDOORS);
+    {
+        if (GetMapId() != 550 || !IsMounted())
+            RemoveAurasWithAttribute(SPELL_ATTR_ONLY_OUTDOORS);
+    }
 
     if (areaFlag == 0xffff)
         return;
@@ -7609,7 +7612,7 @@ void Player::CastItemUseSpell(Item* item, SpellCastTargets const& targets)
 
         RemoveAurasWithInterruptFlags(AURA_INTERRUPT_ITEM_USE_CANCELS, 0, false, spellInfo->HasAttribute(SPELL_ATTR_EX_ALLOW_WHILE_STEALTHED));
 
-        Spell* spell = new Spell(this, spellInfo, ((count > 0) || proto->HasExtraFlag(ITEM_EXTRA_CAST_AS_TRIGGERED)));
+        Spell* spell = new Spell(this, spellInfo, (count > 0));
         spell->SetCastItem(item);
         spell->prepare(targets);
 
