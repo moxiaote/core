@@ -6882,7 +6882,8 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
             break;
     }
 
-    if (pvpInfo.inPvPEnforcedArea && !IsTaxiFlying()) // in hostile area
+    // Hardcore Challenger Do Not Update PvP
+    if (pvpInfo.inPvPEnforcedArea && !IsTaxiFlying() && !(GetLevel() < 60 && GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)) // in hostile area
         UpdatePvP(true);
 
     // on a ffa realm, ffa is toggled together with pvp flag
@@ -17140,8 +17141,7 @@ void Player::_SaveQuestStatus()
             static SqlStatementID deleteQuestStatus ;
             SqlStatement stmt = CharacterDatabase.CreateStatement(deleteQuestStatus, "DELETE FROM `character_queststatus` WHERE `guid` = ? AND `quest` = ?");
             stmt.PExecute(GetGUIDLow(), i->first);
-            mQuestStatus.erase(i);
-            i = mQuestStatus.begin();
+            i = mQuestStatus.erase(i);
             continue;
         }
         switch (i->second.uState)
