@@ -488,7 +488,79 @@ void ThreatManager::addThreat(Unit* pVictim, float threat, bool crit, SpellSchoo
                          pThreatSpell->Id == 7811 ||
                          pThreatSpell->Id == 11774 ||
                          pThreatSpell->Id == 11775))
-        threat = threat + pVictim->GetMaxHealth()*0.125;
+    {
+        if (Player* pOwner = ::ToPlayer(pVictim->GetOwner()))
+        {
+            if (pOwner->HasAura(18705))
+            {
+                threat += pVictim->GetMaxHealth()*0.125*1.10;
+            }
+            else if (pOwner->HasAura(18706))
+            {
+                threat += pVictim->GetMaxHealth()*0.125*1.20;
+            }
+            else if (pOwner->HasAura(18707))
+            {
+                threat += pVictim->GetMaxHealth()*0.125*1.30;
+            }
+            else
+            {
+                threat += pVictim->GetMaxHealth()*0.125;
+            }
+        }
+    }
+    // Voidwalker - Suffering : add 25% max health threat
+    else if (pThreatSpell && (pThreatSpell->Id == 17735 ||
+                              pThreatSpell->Id == 17750 ||
+                              pThreatSpell->Id == 17751 ||
+                              pThreatSpell->Id == 17752))
+    {
+        if (Player* pOwner = ::ToPlayer(pVictim->GetOwner()))
+        {
+            if (pOwner->HasAura(18705))
+            {
+                threat += pVictim->GetMaxHealth()*0.25*1.10;
+            }
+            else if (pOwner->HasAura(18706))
+            {
+                threat += pVictim->GetMaxHealth()*0.25*1.20;
+            }
+            else if (pOwner->HasAura(18707))
+            {
+                threat += pVictim->GetMaxHealth()*0.25*1.30;
+            }
+            else
+            {
+                threat += pVictim->GetMaxHealth()*0.25;
+            }
+        }
+    }
+    // Succubus - Soothing Kiss : subtract 15% max mana threat
+    else if (pThreatSpell && (pThreatSpell->Id == 6360 ||
+                              pThreatSpell->Id == 7813 ||
+                              pThreatSpell->Id == 11784 ||
+                              pThreatSpell->Id == 11785))
+    {
+        if (Player* pOwner = ::ToPlayer(pVictim->GetOwner()))
+        {
+            if (pOwner->HasAura(18754))
+            {
+                threat -= pVictim->GetMaxPower(POWER_MANA)*0.15*1.10;
+            }
+            else if (pOwner->HasAura(18755))
+            {
+                threat -= pVictim->GetMaxPower(POWER_MANA)*0.15*1.20;
+            }
+            else if (pOwner->HasAura(18756))
+            {
+                threat -= pVictim->GetMaxPower(POWER_MANA)*0.15*1.30;
+            }
+            else
+            {
+                threat -= pVictim->GetMaxPower(POWER_MANA)*0.15;
+            }
+        }
+    }
     // Hunter's Pet - Growl : add 10% max health threat
     else if (pThreatSpell && (pThreatSpell->Id == 2649 ||
                               pThreatSpell->Id == 14916 ||
@@ -497,7 +569,9 @@ void ThreatManager::addThreat(Unit* pVictim, float threat, bool crit, SpellSchoo
                               pThreatSpell->Id == 14919 ||
                               pThreatSpell->Id == 14920 ||
                               pThreatSpell->Id == 14921))
-        threat = threat + pVictim->GetMaxHealth()*0.1;
+    {
+        threat += pVictim->GetMaxHealth()*0.1;
+    }
 
     float totalThreat = ThreatCalcHelper::CalcThreat(pVictim, threat, crit, schoolMask, pThreatSpell);
     addThreatDirectly(pVictim, totalThreat, pThreatSpell && pThreatSpell->HasAttribute(SPELL_ATTR_EX_NO_THREAT));

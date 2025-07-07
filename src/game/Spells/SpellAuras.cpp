@@ -339,6 +339,11 @@ void Aura::Refresh(Unit* caster, Unit* target, SpellAuraHolder* pRefreshWithHold
                 lockStats = true;
                 break;
         }
+
+        // Warlock - Infernal & Doomguard
+        if (target->IsCreature() && (target->GetEntry() == 89 || target->GetEntry() == 11859))
+            lockStats = false;
+
         if (lockStats)
             target->SetCanModifyStats(false);
 #endif
@@ -4631,6 +4636,37 @@ float Aura::CalculateDotDamage() const
 
     switch (spellProto->SpellFamilyName)
     {
+        case SPELLFAMILY_GENERIC:
+        {
+            // Doomguard - Rend : dot damage bonus 1% max health per trigger
+            if (spellProto->Id == 21949)
+            {
+                Unit* pOwner = caster ? caster->GetCharmerOrOwner() : nullptr;
+                if (pOwner && pOwner->GetTypeId() == TYPEID_PLAYER)
+                    damage += caster->GetMaxHealth() * 0.01f;
+            }
+            break;
+        }
+        case SPELLFAMILY_WARLOCK:
+        {
+            // Doomguard - Rain of Fire : dot damage bonus 3% max mana per trigger
+            if (spellProto->Id == 19474)
+            {
+                Unit* pOwner = caster ? caster->GetCharmerOrOwner() : nullptr;
+                if (pOwner && pOwner->GetTypeId() == TYPEID_PLAYER && caster->GetPowerType() == POWER_MANA)
+                    damage += caster->GetMaxPower(POWER_MANA) * 0.03f;
+            }
+            break;
+        }
+        case SPELLFAMILY_MAGE:
+        {
+            // Sulfuras, Hand of Ragnaros - Fireball : dot damage bonus 4% attack power per trigger
+            if (spellProto->Id == 21162)
+            {
+                damage += caster->GetTotalAttackPowerValue(BASE_ATTACK) * 0.04f;
+            }
+            break;
+        }
         case SPELLFAMILY_DRUID:
         {
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_11_2
@@ -6133,11 +6169,41 @@ void Aura::HandleSchoolAbsorb(bool apply, bool Real)
                         DoneActualBenefit = caster->SpellBaseDamageBonusDone(spellProto->GetSpellSchoolMask()) * 0.5f;
                         break;
                     }
+                    // Spellstone
+                    if (spellProto->SpellIconID == 344)
+                    {
+                        //+50% from +spd bonus mod by jianggn
+                        DoneActualBenefit = caster->SpellBaseDamageBonusDone(spellProto->GetSpellSchoolMask()) * 0.5f;
+                        if (caster->HasAura(18774))
+                        {
+                            DoneActualBenefit *= 1.50;
+                        }
+                        else if (caster->HasAura(18775))
+                        {
+                            DoneActualBenefit *= 2.00;
+                        }
+                        break;
+                    }
                     // Voidwalker - Sacrifice
                     if (spellProto->SpellIconID == 693)
                     {
-                        //+100% from max health bonus
-                        DoneActualBenefit = caster->GetMaxHealth() * 1.0f;
+                        //+50% from max health bonus
+                        DoneActualBenefit = caster->GetMaxHealth() * 0.5f;
+                        if (Player* pOwner = ::ToPlayer(caster->GetOwner()))
+                        {
+                            if (pOwner->HasAura(18705))
+                            {
+                                DoneActualBenefit *= 1.10;
+                            }
+                            else if (pOwner->HasAura(18706))
+                            {
+                                DoneActualBenefit *= 1.20;
+                            }
+                            else if (pOwner->HasAura(18707))
+                            {
+                                DoneActualBenefit *= 1.30;
+                            }
+                        }
                         break;
                     }
                     break;
@@ -7728,6 +7794,20 @@ void SpellAuraHolder::Update(uint32 diff)
                             Spell::SendCastResult(plCaster, m_spellProto, SPELL_FAILED_FIZZLE);
                     }
                 }
+                else if (manaPerSecond && powertype == POWER_HEALTH && m_spellProto->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_HEALTH_FUNNEL>())
+                {
+                    if (int32(caster->GetHealth()) > int32(manaPerSecond / 2))
+                        caster->ModifyHealth(-int32(manaPerSecond / 2));
+                    else
+                    {
+                        if (target)
+                            target->RemoveAurasDueToSpell(m_spellProto->Id, this);
+                        if (m_isChanneled)
+                            caster->InterruptSpell(CURRENT_CHANNELED_SPELL);
+                        if (Player* plCaster = caster->ToPlayer())
+                            Spell::SendCastResult(plCaster, m_spellProto, SPELL_FAILED_FIZZLE);
+                    }
+                }
             }
         }
     }
@@ -8519,9 +8599,10 @@ void SpellAuraHolder::CalculateHeartBeat(Unit* caster, Unit* target)
 
     // Fingerslayer Blade - item 26044
     // Improved Sap - talent 14095
+    // Improved Enslave Demon - talent 18825
     if (caster)
     {
-        if ((m_spellProto->IsFitToFamily<SPELLFAMILY_MAGE, CF_MAGE_POLYMORPH>() && caster->HasAura(34319)) || (m_spellProto->IsFitToFamily<SPELLFAMILY_ROGUE, CF_ROGUE_SAP>() && caster->HasAura(14095)))
+        if ((m_spellProto->IsFitToFamily<SPELLFAMILY_MAGE, CF_MAGE_POLYMORPH>() && caster->HasAura(34319)) || (m_spellProto->IsFitToFamily<SPELLFAMILY_ROGUE, CF_ROGUE_SAP>() && caster->HasAura(14095)) || (m_spellProto->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_ENSLAVE_DEMON>() && caster->HasAura(18825)) || ((m_spellProto->Id == 5782 || m_spellProto->Id == 6213 || m_spellProto->Id == 6215 || m_spellProto->Id == 5484 || m_spellProto->Id == 17928) && caster->HasAura(34469)))
             return;
     }
     // Permanent effects and positive spells don't have resist heartbeats.
