@@ -335,7 +335,14 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
                     }
                     case 27860: // Blade of Eternal Darkness
                     {
-                        // Engulfing Shadows : 100 shadow damage bonus intellect
+                        // Engulfing Shadows : 100 shadow damage bonus 0.5x intellect
+                        if (m_casterUnit && m_casterUnit->GetTypeId() == TYPEID_PLAYER)
+                            damage = damage + m_casterUnit->GetStat(STAT_INTELLECT) * 0.5f;
+                        break;
+                    }
+                    case 34475: // Atiesh, Greatstaff of the Guardian
+                    {
+                        // Arcane Blast : 150 arcane damage bonus 1.0x intellect
                         if (m_casterUnit && m_casterUnit->GetTypeId() == TYPEID_PLAYER)
                             damage = damage + m_casterUnit->GetStat(STAT_INTELLECT);
                         break;
@@ -412,13 +419,29 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
             }
             case SPELLFAMILY_WARLOCK:
             {
+                if (!m_casterUnit)
+                    break;
                 // Wildfire - Immolate + Searing Pain + Soul Fire
                 if (m_spellInfo->IsFitToFamilyMask<CF_WARLOCK_IMMOLATE, CF_WARLOCK_SEARING_PAIN>() || m_spellInfo->SpellIconID == 184)
                 {
-                    if (!m_casterUnit)
-                        break;
                     if (m_casterUnit->HasAura(34359) && unitTarget->GetHealthPercent() < 50.0f)
                         damage = damage * 1.3f;
+                }
+                // Firestone Attack
+                else if (m_spellInfo->IsFitToFamilyMask<CF_WARLOCK_FIRESTONE_ATTACK>())
+                {
+                    if (m_casterUnit->HasAura(18767))
+                    {
+                        damage = damage + (m_casterUnit->GetStat(STAT_STAMINA) + m_casterUnit->GetStat(STAT_INTELLECT)) * 0.15f;
+                    }
+                    else if (m_casterUnit->HasAura(18768))
+                    {
+                        damage = damage + (m_casterUnit->GetStat(STAT_STAMINA) + m_casterUnit->GetStat(STAT_INTELLECT)) * 0.2f;
+                    }
+                    else
+                    {
+                        damage = damage + (m_casterUnit->GetStat(STAT_STAMINA) + m_casterUnit->GetStat(STAT_INTELLECT)) * 0.1f;
+                    }
                 }
                 break;
             }
@@ -437,6 +460,24 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
                     // DRUID - Rake : damage bonus 3.5% attack power
                     if (m_casterUnit)
                         damage = damage + (m_casterUnit->GetTotalAttackPowerValue(BASE_ATTACK) * 0.035f);
+                }
+                break;
+            }
+            case SPELLFAMILY_ROGUE:
+            {
+                if (!m_casterUnit)
+                    break;
+                // Master Poisoner - instant poison
+                if (m_spellInfo->IsFitToFamilyMask<CF_ROGUE_INSTANT_POISON>())
+                {
+                    if (m_casterUnit->HasAura(34481))
+                    {
+                        damage = damage + (m_casterUnit->GetTotalAttackPowerValue(BASE_ATTACK) * 0.075f);
+                    }
+                    else if (m_casterUnit->HasAura(34482))
+                    {
+                        damage = damage + (m_casterUnit->GetTotalAttackPowerValue(BASE_ATTACK) * 0.15f);
+                    }
                 }
                 break;
             }
@@ -459,9 +500,9 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
                 // Explosive Trap
                 else if (m_spellInfo->Id == 13812 || m_spellInfo->Id == 14314 || m_spellInfo->Id == 14315)
                 {
-                    // HUNTER - Explosive Trap : direct damage bonus 15% hp and mana
+                    // HUNTER - Explosive Trap : direct damage bonus 15% hp
                     if (m_casterUnit)
-                        damage = damage + ((m_casterUnit->GetMaxHealth() + m_casterUnit->GetMaxPower(POWER_MANA)) * 0.15f);
+                        damage = damage + (m_casterUnit->GetMaxHealth() * 0.15f);
                 }
                 break;
             }
@@ -1533,6 +1574,18 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                         m_casterUnit->CastCustomSpell(m_casterUnit, 23782, LifegivingGemHealthMod, {}, {}, true, nullptr);
                     }
                     return;
+                case 24150:                                 // Stinger Charge Primer
+                {
+                    if (!unitTarget)
+                        return;
+
+                    if (unitTarget->HasAura(25187))
+                        m_caster->CastSpell(unitTarget, 25191, true);
+                    else
+                        m_caster->CastSpell(unitTarget, 25190, true);
+
+                    return;
+                }
                 case 24781:                                 // Dream Fog
                 {
                     if (m_caster->GetTypeId() != TYPEID_UNIT || !unitTarget)
@@ -2231,6 +2284,18 @@ void Spell::EffectHeal(SpellEffectIndex effIdx)
 #endif
 
         m_healing += addhealth;
+        // Improved Healthstone
+        if (unitTarget->HasAura(34020) && m_spellInfo->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_HEALTHSTONE>())
+        {
+            if (unitTarget->HasAura(18692))
+            {
+                m_healing *= 1.5f;
+            }
+            else if (unitTarget->HasAura(18693))
+            {
+                m_healing *= 2.0f;
+            }
+        }
     }
 }
 
@@ -2447,7 +2512,16 @@ void Spell::EffectEnergize(SpellEffectIndex effIdx)
     // Blade of Eternal Darkness
     if (m_spellInfo->Id == 27860 && unitTarget->GetTypeId() == TYPEID_PLAYER)
     {
-        // Engulfing Shadows : 100 mana bonus spirit, Spirit Tap bonus half
+        // Engulfing Shadows : 100 mana bonus 0.5x spirit, Priest - Spirit Tap bonus half
+        if (unitTarget->HasAura(15271))
+            damage += m_casterUnit->GetStat(STAT_SPIRIT) * 0.25f;
+        else
+            damage += m_casterUnit->GetStat(STAT_SPIRIT) * 0.5f;
+    }
+    // Atiesh, Greatstaff of the Guardian
+    else if (m_spellInfo->Id == 34475 && unitTarget->GetTypeId() == TYPEID_PLAYER)
+    {
+        // Arcane Blast : 150 mana bonus 1.0x spirit, Priest - Spirit Tap bonus half
         if (unitTarget->HasAura(15271))
             damage += m_casterUnit->GetStat(STAT_SPIRIT) * 0.5f;
         else
@@ -4705,15 +4779,12 @@ void Spell::EffectScriptEffect(SpellEffectIndex effIdx)
                     // Select maintank + 4 random targets
                     std::vector<Unit*> viableTargets;
                     ThreatList const& tl = m_casterUnit->GetThreatManager().getThreatList();
-                    for (const auto it : tl)
+                    for (auto const& itr : tl)
                     {
-                        if (it->getUnitGuid().IsPlayer())
+                        if (Player* pPlayer = itr->getTarget()->ToPlayer())
                         {
-                            if (Unit* pUnit = m_casterUnit->GetMap()->GetUnit(it->getUnitGuid()))
-                            {
-                                if (pUnit->IsAlive())
-                                    viableTargets.push_back(pUnit);
-                            }
+                            if (pPlayer->IsAlive())
+                                viableTargets.push_back(pPlayer);
                         }
                     }
 

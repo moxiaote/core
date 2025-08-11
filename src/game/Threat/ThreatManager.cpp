@@ -211,7 +211,7 @@ void ThreatContainer::clearReferences()
 }
 
 //============================================================
-// Return the HostileReference of nullptr, if not found
+// Return the HostileReference or nullptr if not found
 HostileReference* ThreatContainer::getReferenceByTarget(Unit* pVictim)
 {
     if (!pVictim)
@@ -465,9 +465,22 @@ void ThreatManager::addThreat(Unit* pVictim, float threat, bool crit, SpellSchoo
                          pThreatSpell->Id == 34312 ||
                          pThreatSpell->Id == 34328 ||
                          pThreatSpell->Id == 34342 ||
-                         pThreatSpell->Id == 34352))
+                         pThreatSpell->Id == 34352 ||
+                         pThreatSpell->Id == 17809 ||
+                         pThreatSpell->Id == 17933 ||
+                         pThreatSpell->Id == 17934 ||
+                         pThreatSpell->Id == 17935 ||
+                         pThreatSpell->Id == 27860 ||
+                         pThreatSpell->Id == 34475 ||
+                         pThreatSpell->Id == 34480))
         return;
-    
+
+    // Improved Imp rank 3 - Firebolt no threat
+    if (pThreatSpell && (pThreatSpell->Id == 3110 || pThreatSpell->Id == 7799 || pThreatSpell->Id == 7800 || pThreatSpell->Id == 7801 || pThreatSpell->Id == 7802 || pThreatSpell->Id == 11762 || pThreatSpell->Id == 11763))
+        if (Player* pOwner = ::ToPlayer(pVictim->GetOwner()))
+            if (pOwner->HasAura(18696))
+                return;
+
     MANGOS_ASSERT(getOwner()->GetTypeId() == TYPEID_UNIT);
 
     // don't add assist threat to targets under hard CC
@@ -560,6 +573,14 @@ void ThreatManager::addThreat(Unit* pVictim, float threat, bool crit, SpellSchoo
                 threat -= pVictim->GetMaxPower(POWER_MANA)*0.15;
             }
         }
+    }
+    // Felhunter - Tainted Blood : add 7.5% max mana threat
+    else if (pThreatSpell && (pThreatSpell->Id == 19479 ||
+                              pThreatSpell->Id == 19652 ||
+                              pThreatSpell->Id == 19653 ||
+                              pThreatSpell->Id == 19654))
+    {
+        threat += pVictim->GetMaxPower(POWER_MANA)*0.075;
     }
     // Hunter's Pet - Growl : add 10% max health threat
     else if (pThreatSpell && (pThreatSpell->Id == 2649 ||

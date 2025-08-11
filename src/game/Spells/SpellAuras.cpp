@@ -1431,6 +1431,8 @@ void Aura::TriggerSpell()
                             lRage = 100;
                         target->ModifyPower(POWER_RAGE, -lRage);
                         float FRTriggerBasePoints = lRage * LifePerRage / 10;
+                        // Frenzied Regeneration bonus 5% Druid armor per tick
+                        FRTriggerBasePoints += target->GetArmor() * 0.05f;
                         target->CastCustomSpell(target, 22845, dither(FRTriggerBasePoints), {}, {}, true, nullptr, this);
                         return;
                     }
@@ -1742,7 +1744,8 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                     case 34187:
                     {
                         bool castspells = true;
-                        uint32 spells[8] = {24425,22888,34073,34072,34075,34074,34076,34276};
+                        //uint32 spells[8] = {24425,22888,34073,34072,34075,34074,34076,34276};
+                        uint32 spells[8] = {34486,34487,34073,34072,34075,34074,34076,34276};
                         uint32 times[8] = {};
                         if (Player* player = ToPlayer(GetCaster()))
                         {
@@ -1943,6 +1946,22 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                     {
                         target->HandleEmoteCommand(EMOTE_STATE_DANCE);
                         break;
+                    }
+                }
+                break;
+            }
+            case SPELLFAMILY_ROGUE:
+            {
+                switch (GetId())
+                {
+                    case 34373: // Smoke Bomb
+                    {
+                        if (target)
+                        {
+                            m_isPeriodic            = true;
+                            m_modifier.periodictime = 1000;
+                        }
+                        return;
                     }
                 }
                 break;
@@ -4693,15 +4712,15 @@ float Aura::CalculateDotDamage() const
         }
         case SPELLFAMILY_HUNTER:
         {
-            // HUNTER - Explosive Trap : dot damage bonus 1% hp and mana
+            // HUNTER - Explosive Trap : dot damage bonus 1% hp
             if (spellProto->Id == 13812 || spellProto->Id == 14314 || spellProto->Id == 14315)
             {
-                damage += (caster->GetMaxHealth() + caster->GetMaxPower(POWER_MANA)) * 0.01f;
+                damage += caster->GetMaxHealth() * 0.01f;
             }
-            // HUNTER - Immolation Trap : dot damage bonus 5% hp and mana
+            // HUNTER - Immolation Trap : dot damage bonus 5% hp
             else if (spellProto->Id == 13797 || spellProto->Id == 14298 || spellProto->Id == 14299 || spellProto->Id == 14300 || spellProto->Id == 14301)
             {
-                damage += (caster->GetMaxHealth() + caster->GetMaxPower(POWER_MANA)) * 0.05f;
+                damage += caster->GetMaxHealth() * 0.05f;
             }
             break;
         }
@@ -4718,6 +4737,18 @@ float Aura::CalculateDotDamage() const
                     uint8 cp = ((Player*)caster)->GetComboPoints();
                     if (cp > 3) cp = 3;
                     damage += caster->GetTotalAttackPowerValue(BASE_ATTACK) * cp / 100;
+                }
+            }
+            // Master Poisoner - deadly poison
+            else if (spellProto->IsFitToFamilyMask<CF_ROGUE_DEADLY_POISON>())
+            {
+                if (caster->HasAura(34481))
+                {
+                    damage += caster->GetTotalAttackPowerValue(BASE_ATTACK) * 0.02f * GetStackAmount();
+                }
+                else if (caster->HasAura(34482))
+                {
+                    damage += caster->GetTotalAttackPowerValue(BASE_ATTACK) * 0.04f * GetStackAmount();
                 }
             }
             // World of Warcraft Client Patch 1.12.0 (2006-08-22)
@@ -6987,6 +7018,25 @@ void Aura::PeriodicDummyTick()
             break;
         }
 
+        case SPELLFAMILY_ROGUE:
+        {
+            switch (spell->Id)
+            {
+                // Smoke Bomb
+                case 34373:
+                {
+                    if (target->IsInCombat())
+                    {
+                        uint32 rand = urand(0, 99);
+                        if (rand < 10)          // 10% chance to fall down
+                            target->CastSpell(target, 6869, true, nullptr, this);
+                    }
+                    return;
+                }
+            }
+            break;
+        }
+
         case SPELLFAMILY_PALADIN:
         {
 #if SUPPORTED_CLIENT_BUILD <= CLIENT_BUILD_1_8_4
@@ -8059,7 +8109,7 @@ void SpellAuraHolder::CalculateForBuffLimit()
 {
     m_visibleSlotLimitAffected = true;
 
-    if (IsPermanent() || m_spellProto->Id == 34000 || m_spellProto->Id == 34001)
+    if (IsPermanent() || m_spellProto->Id == 34000 || m_spellProto->Id == 34001 || m_spellProto->Id == 34072 || m_spellProto->Id == 34073 || m_spellProto->Id == 34074 || m_spellProto->Id == 34075 || m_spellProto->Id == 34076 || m_spellProto->Id == 34276 || m_spellProto->Id == 34486 || m_spellProto->Id == 34487)
         m_visibleSlotLimitScore = 3;
     else if (GetCasterGuid() != GetTarget()->GetObjectGuid())
         m_visibleSlotLimitScore = 2;
@@ -8597,13 +8647,26 @@ void SpellAuraHolder::CalculateHeartBeat(Unit* caster, Unit* target)
 
     _heartBeatRandValue = 0;
 
-    // Fingerslayer Blade - item 26044
-    // Improved Sap - talent 14095
-    // Improved Enslave Demon - talent 18825
     if (caster)
     {
+        // Fingerslayer Blade - item 26044
+        // Improved Sap - talent 14095
+        // Improved Enslave Demon - talent 18825
+        // Scream of Pain - talent 34469
         if ((m_spellProto->IsFitToFamily<SPELLFAMILY_MAGE, CF_MAGE_POLYMORPH>() && caster->HasAura(34319)) || (m_spellProto->IsFitToFamily<SPELLFAMILY_ROGUE, CF_ROGUE_SAP>() && caster->HasAura(14095)) || (m_spellProto->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_ENSLAVE_DEMON>() && caster->HasAura(18825)) || ((m_spellProto->Id == 5782 || m_spellProto->Id == 6213 || m_spellProto->Id == 6215 || m_spellProto->Id == 5484 || m_spellProto->Id == 17928) && caster->HasAura(34469)))
+        {
             return;
+        }
+        // Improved Succubus - talent 18756
+        // Seduction - spell 6358
+        else if (m_spellProto->Id == 6358)
+        {
+            if (Unit* pOwner = caster->GetOwner())
+            {
+                if (pOwner->HasAura(18756))
+                    return;
+            }
+        }
     }
     // Permanent effects and positive spells don't have resist heartbeats.
     // The aura is checked for being positive in Aura::Aura rather than here since the last-added Aura is not yet in m_auras
