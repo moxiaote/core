@@ -251,7 +251,7 @@ bool PartyBotAI::ShouldAutoRevive() const
 
             if (pMember->IsAlive())
             {
-                if (IsHealerClass(pMember->GetClass()))
+                if (IsHealerClass(pMember->GetClass()) && pMember->GetClass() != CLASS_DRUID && !(pMember->IsBot() && pMember->GetClass() == CLASS_PRIEST && pMember->HasAura(15473)))
                     return false;
 
                 if (me->IsWithinDistInMap(pMember, 15.0f))
@@ -683,7 +683,7 @@ void PartyBotAI::UpdateAI(uint32 const diff)
         return;
     }
 
-    if (pLeader->IsTaxiFlying())
+    if (pLeader->IsTaxiFlying() || pLeader->HasAura(34499))
     {
         if (me->GetMotionMaster()->GetCurrentMovementGeneratorType())
         {
@@ -841,7 +841,7 @@ void PartyBotAI::UpdateAI(uint32 const diff)
                     me->HasAuraType(SPELL_AURA_MOD_SHAPESHIFT))
                     me->RemoveSpellsCausingAura(SPELL_AURA_MOD_SHAPESHIFT);
 
-                if (me->GetLevel() >= 60 && me->GetMapId() != MAP_AHN_QIRAJ_TEMPLE && urand(0, 99) < 25)
+                if (me->GetLevel() >= 60 && me->GetMapId() != MAP_AHN_QIRAJ_TEMPLE && urand(0, 99) < 20)
                 {
                     bool oldStateCastTime = me->HasCheatOption(PLAYER_CHEAT_NO_CAST_TIME);
                     bool oldStatePower = me->HasCheatOption(PLAYER_CHEAT_NO_POWER);
@@ -2029,7 +2029,6 @@ void PartyBotAI::UpdateInCombatAI_Mage()
 
         if (m_spells.mage.pATuoSiZhiGun &&
             CanTryToCastSpell(pVictim, m_spells.mage.pATuoSiZhiGun) &&
-            (me->GetDistance(pVictim) < 40.0f) &&
             !pVictim->HasAura(34003))
         {
             if (DoCastSpell(pVictim, m_spells.mage.pATuoSiZhiGun) == SPELL_CAST_OK)

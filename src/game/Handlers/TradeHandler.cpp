@@ -192,9 +192,22 @@ void WorldSession::MoveItems(Item* myItems[], Item* hisItems[])
                 // If saving is disabled for player who receives the item, it must be deleted from db, or it enables duping.
                 if (_player->IsSavingDisabled())
                 {
-                    sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "Item guid %u traded to character %u with disabled saving. Deleting from DB.", hisItems[i]->GetGUIDLow(), _player->GetGUIDLow());
-                    hisItems[i]->DeleteFromInventoryDB();
-                    hisItems[i]->DeleteAllFromDB();
+                    if (_player->IsBot())
+                    {
+                        std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery("SELECT 1 FROM `characters` WHERE `guid` = '%u' and `name` = '%s'", _player->GetObjectGuid(), _player->GetName()));
+                        if (result)
+                        {
+                            sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "Item guid %u traded to character %u with disabled saving. Deleting from DB.", hisItems[i]->GetGUIDLow(), _player->GetGUIDLow());
+                            hisItems[i]->DeleteFromInventoryDB();
+                            hisItems[i]->DeleteAllFromDB();
+                        }
+                    }
+                    else
+                    {
+                        sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "Item guid %u traded to character %u with disabled saving. Deleting from DB.", hisItems[i]->GetGUIDLow(), _player->GetGUIDLow());
+                        hisItems[i]->DeleteFromInventoryDB();
+                        hisItems[i]->DeleteAllFromDB();
+                    }
                 }
             }
         }
@@ -319,9 +332,16 @@ void WorldSession::HandleAcceptTradeOpcode(WorldPacket& recvPacket)
         his_trade->SetAccepted(false, true);
         return;
     }
-    if (!sWorld.getConfig(CONFIG_BOOL_GM_ALLOW_TRADES) &&
-            (trader->GetSession()->GetSecurity() > SEC_PLAYER ||
-            GetSecurity() > SEC_PLAYER))
+
+    // prevent losing money due to reaching gold cap
+    if (((int64(_player->GetMoney()) + int64(his_trade->GetMoney()) - int64(my_trade->GetMoney())) > int64(_player->GetMaxMoney())) ||
+        ((int64(trader->GetMoney()) + int64(my_trade->GetMoney()) - int64(his_trade->GetMoney())) > int64(trader->GetMaxMoney())))
+    {
+        SendTradeStatus(TRADE_STATUS_TRADE_CANCELED);
+        return;
+    }
+
+    if (!sWorld.getConfig(CONFIG_BOOL_GM_ALLOW_TRADES) && (trader->GetSession()->GetSecurity() > SEC_PLAYER || GetSecurity() > SEC_PLAYER))
     {
         SendTradeStatus(TRADE_STATUS_TRADE_CANCELED);
         return;

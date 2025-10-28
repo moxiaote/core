@@ -371,32 +371,41 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
             {
                 if (!m_casterUnit)
                     break;
-                // Multi Cast
                 if (Player* pPlayer = ToPlayer(m_casterUnit))
                 {
-                    if (pPlayer->HasAura(34318) && m_spellInfo->IsFitToFamily<SPELLFAMILY_MAGE, CF_MAGE_ARCANE_MISSILES, CF_MAGE_FIREBALL, CF_MAGE_FROSTBOLT>())
+                    if (m_spellInfo->IsFitToFamily<SPELLFAMILY_MAGE, CF_MAGE_ARCANE_MISSILES, CF_MAGE_FIREBALL, CF_MAGE_PYROBLAST, CF_MAGE_FROSTBOLT>())
                     {
-                        uint32 randomchance = urand(1, 100);
-                        // 3% chances deal 4 times damage
-                        if (randomchance >= 98)
+                        // Torment the Weak
+                        if (pPlayer->HasAura(34488))
                         {
-                            damage *= 4;
-                            if (!pPlayer->IsBot())
-                                pPlayer->GetSession()->SendNotification("Multi Cast X4!");
+                            if (unitTarget->HasUnitState(UNIT_STATE_ROOT) || unitTarget->HasAuraType(SPELL_AURA_MOD_DECREASE_SPEED))
+                                damage *= 1.15f;
                         }
-                        // 6% chances deal 3 times damage
-                        else if (randomchance >= 92 && randomchance < 98)
+                        // Multi Cast
+                        if (pPlayer->HasAura(34318))
                         {
-                            damage *= 3;
-                            if (!pPlayer->IsBot())
-                                pPlayer->GetSession()->SendNotification("Multi Cast X3!");
-                        }
-                        // 12% chances deal 2 times damage
-                        else if (randomchance >= 80 && randomchance < 92)
-                        {
-                            damage *= 2;
-                            if (!pPlayer->IsBot())
-                                pPlayer->GetSession()->SendNotification("Multi Cast X2!");
+                            uint32 randomchance = urand(1, 100);
+                            // 3% chances deal 4 times damage
+                            if (randomchance >= 98)
+                            {
+                                damage *= 4;
+                                if (!pPlayer->IsBot())
+                                    pPlayer->GetSession()->SendNotification("Multi Cast %s X4!", m_spellInfo->SpellName[0].c_str());
+                            }
+                            // 6% chances deal 3 times damage
+                            else if (randomchance >= 92 && randomchance < 98)
+                            {
+                                damage *= 3;
+                                if (!pPlayer->IsBot())
+                                    pPlayer->GetSession()->SendNotification("Multi Cast %s X3!", m_spellInfo->SpellName[0].c_str());
+                            }
+                            // 12% chances deal 2 times damage
+                            else if (randomchance >= 80 && randomchance < 92)
+                            {
+                                damage *= 2;
+                                if (!pPlayer->IsBot())
+                                    pPlayer->GetSession()->SendNotification("Multi Cast %s X2!", m_spellInfo->SpellName[0].c_str());
+                            }
                         }
                     }
                     else if (m_spellInfo->Id == 21162) // Sulfuras, Hand of Ragnaros
@@ -611,8 +620,10 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
 
                     switch (m_casterGo->GetEntry())
                     {
-                        case 179785:    // Silverwing Flag
-                        case 179786:    // Warsong Flag
+                        case 179785:    // Silverwing Flag (dropped)
+                        case 179786:    // Warsong Flag (dropped)
+                        case 179830:    // Silverwing Flag (base)
+                        case 179831:    // Warsong Flag (base)
                             if (bg->GetTypeID() == BATTLEGROUND_WS)
                                 bg->EventPlayerClickedOnFlag(pPlayer, m_casterGo);
                             break;
@@ -927,6 +938,94 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                         if (Group* pGroup = pPlayer->GetGroup())
                         {
                             pPlayer->RemoveFromGroup();
+                        }
+                    }
+                    return;
+                }
+                case 34492:
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    if (!m_casterUnit)
+                        return;
+                    float hp_percent = m_casterUnit->GetHealthPercent();
+                    uint32 haste_point = 0;
+                    if (hp_percent > 80.0f)
+                        haste_point = 5;
+                    else if (hp_percent > 60.0f)
+                        haste_point = 10;
+                    else if (hp_percent > 40.0f)
+                        haste_point = 15;
+                    else if (hp_percent > 20.0f)
+                        haste_point = 20;
+                    else
+                        haste_point = 25;
+                    m_casterUnit->CastCustomSpell(m_casterUnit, 34493, haste_point, haste_point, {}, true);
+                    return;
+                }
+                case 34494:
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    if (!m_casterUnit)
+                        return;
+                    if (Pet* pet = m_casterUnit->GetPet())
+                    {
+                        float pet_hp_percent = pet->GetHealthPercent();
+                        int32 pet_damage_percent = 0;
+                        if (pet_hp_percent < 30.0f)
+                            pet_damage_percent = -60;
+                        else if (pet_hp_percent >= 30.0f && pet_hp_percent <= 90.0f)
+                            pet_damage_percent = dither(pet_hp_percent - 90.0f);
+                        else if (pet_hp_percent > 90.0f)
+                            pet_damage_percent = dither(pet_hp_percent * 2 - 180.0f);
+                        m_casterUnit->CastCustomSpell(m_casterUnit, 34344, pet_damage_percent, {}, {}, true);
+                    }
+                    return;
+                }
+                case 34495:
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    if (!m_casterUnit)
+                        return;
+                    // Ice Cold Milk - Remove Drunk Status
+                    if (Player* pPlayer = m_caster->ToPlayer())
+                        pPlayer->SetDrunkValue(0, m_CastItem ? m_CastItem->GetEntry() : 0);
+                    return;
+                }
+                case 34497:
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    if (!m_casterUnit)
+                        return;
+                    // Tong Ku Ya Zhi : Spirit Tap bonus half
+                    if (m_casterUnit->HasAura(15271))
+                        m_casterUnit->CastCustomSpell(m_casterUnit, 34498, -dither(m_casterUnit->GetStat(STAT_SPIRIT) * 0.15f), {}, {}, true);
+                    else
+                        m_casterUnit->CastCustomSpell(m_casterUnit, 34498, -dither(m_casterUnit->GetStat(STAT_SPIRIT) * 0.2f), {}, {}, true);
+                    return;
+                }
+                case 34499:
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    if (!m_casterUnit)
+                        return;
+                    // Mage - Fingerslayer Blade
+                    if (Player* player = m_casterUnit->ToPlayer())
+                    {
+                        if (player->GetClass() == CLASS_MAGE)
+                        {
+                            if (Pet* pet = player->GetPet())
+                                pet->Unsummon(PET_SAVE_NOT_IN_SLOT);
+                            player->SetCheatFly(true, false);
+                            player->SendSysMessage("Jump to switch from flying to running.");
+                        }
+                        else
+                        {
+                            player->SendSysMessage("Only mage can do.");
                         }
                     }
                     return;
@@ -2617,6 +2716,7 @@ void Spell::EffectOpenLock(SpellEffectIndex effIdx)
                 return;
             }
         }
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_5_1
         else if (goInfo->type == GAMEOBJECT_TYPE_FLAGSTAND)
         {
             //CanUseBattleGroundObject() already called in CheckCast()
@@ -2624,6 +2724,7 @@ void Spell::EffectOpenLock(SpellEffectIndex effIdx)
             if (BattleGround *bg = player->GetBattleGround())
                 return;
         }
+#endif
         lockId = goInfo->GetLockId();
         guid = gameObjTarget->GetObjectGuid();
     }
@@ -4015,6 +4116,9 @@ void Spell::EffectWeaponDmg(SpellEffectIndex effIdx)
         bonus = unitTarget->SpellDamageBonusTaken(m_casterUnit, m_spellInfo, effIdx, bonus, SPELL_DIRECT_DAMAGE);
     }
 
+    // Obsidian Destroyer‌ - Sanity Eclipse - 34091
+    if (m_spellInfo->Id == 34091)
+        bonus *= m_casterUnit->GetPowerPercent(POWER_MANA) / 100.0f;
     // Hunter - Split Shot - 34322
     if (m_spellInfo->Id == 75 && m_casterUnit->HasAura(34322))
         bonus *= 0.7f;
@@ -6314,10 +6418,6 @@ void Spell::EffectTransmitted(SpellEffectIndex effIdx)
             }
             break;
         }
-        case GAMEOBJECT_TYPE_FISHINGHOLE:
-        case GAMEOBJECT_TYPE_CHEST:
-        default:
-            break;
     }
 
     pGameObj->SetRespawnTime(duration > 0 ? duration / IN_MILLISECONDS : 0);

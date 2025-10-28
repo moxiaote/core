@@ -7028,8 +7028,21 @@ void Aura::PeriodicDummyTick()
                     if (target->IsInCombat())
                     {
                         uint32 rand = urand(0, 99);
-                        if (rand < 10)          // 10% chance to fall down
-                            target->CastSpell(target, 6869, true, nullptr, this);
+                        uint32 limit = 15;
+                        switch (target->GetLevel())
+                        {
+                            case 61:
+                                limit = 10;
+                                break;
+                            case 62:
+                                limit = 5;
+                                break;
+                            case 63:
+                                limit = 1;
+                                break;
+                        }
+                        if (rand < limit)   // chance to fall down
+                            target->CastSpell(target, 6869, true, nullptr, this);   // Fall Down 6869
                     }
                     return;
                 }
@@ -7720,6 +7733,13 @@ void SpellAuraHolder::HandleSpellSpecificBoosts(bool apply)
 
 void SpellAuraHolder::HandleCastOnAuraRemoval() const
 {
+    if (GetSpellProto()->IsFitToFamily<SPELLFAMILY_MAGE, CF_MAGE_POLYMORPH>())
+    {
+        if (GetTarget()->HasAura(34499))
+            GetTarget()->RemoveAurasDueToSpell(34499);
+        return;
+    }
+
     uint32 uiTriggeredSpell = 0;
     AuraRemoveMode mode = GetRemoveMode();
 
@@ -7736,6 +7756,17 @@ void SpellAuraHolder::HandleCastOnAuraRemoval() const
         {
             if (mode == AURA_REMOVE_BY_EXPIRE)
                 GetTarget()->CastSpell(GetTarget(), 24004, true);
+            break;
+        }
+        case 34499:
+        {
+            if (Player* player = GetTarget()->ToPlayer())
+            {
+                player->SetCheatFly(false, false);
+                player->m_movementInfo.moveFlags = (MOVEFLAG_JUMPING);
+                player->GetSession()->RejectMovementPacketsFor(100);
+                player->SendHeartBeat(true);
+            }
             break;
         }
         default:
@@ -8652,8 +8683,7 @@ void SpellAuraHolder::CalculateHeartBeat(Unit* caster, Unit* target)
         // Fingerslayer Blade - item 26044
         // Improved Sap - talent 14095
         // Improved Enslave Demon - talent 18825
-        // Scream of Pain - talent 34469
-        if ((m_spellProto->IsFitToFamily<SPELLFAMILY_MAGE, CF_MAGE_POLYMORPH>() && caster->HasAura(34319)) || (m_spellProto->IsFitToFamily<SPELLFAMILY_ROGUE, CF_ROGUE_SAP>() && caster->HasAura(14095)) || (m_spellProto->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_ENSLAVE_DEMON>() && caster->HasAura(18825)) || ((m_spellProto->Id == 5782 || m_spellProto->Id == 6213 || m_spellProto->Id == 6215 || m_spellProto->Id == 5484 || m_spellProto->Id == 17928) && caster->HasAura(34469)))
+        if ((m_spellProto->IsFitToFamily<SPELLFAMILY_MAGE, CF_MAGE_POLYMORPH>() && caster->HasAura(34319)) || (m_spellProto->IsFitToFamily<SPELLFAMILY_ROGUE, CF_ROGUE_SAP>() && caster->HasAura(14095)) || (m_spellProto->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_ENSLAVE_DEMON>() && caster->HasAura(18825)))
         {
             return;
         }

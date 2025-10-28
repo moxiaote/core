@@ -78,7 +78,7 @@ uint32 BattleBotAI::GetMountSpellId() const
 {
     if (me->GetLevel() >= 60)
     {
-        if (urand(0, 99) < 75) // 75% chance
+        if (urand(0, 99) < 85) // 85% chance
         {
             if (me->GetClass() == CLASS_PALADIN)
                 return BB_SPELL_MOUNT_60_PALADIN;
@@ -408,6 +408,9 @@ Unit* BattleBotAI::SelectFollowTarget() const
             continue;
 
         if (pTarget->IsGameMaster())
+            continue;
+
+        if (pTarget->HasAura(34499))
             continue;
 
         if (me->GetTeam() == ALLIANCE)
@@ -2070,7 +2073,6 @@ void BattleBotAI::UpdateInCombatAI_Mage()
 
         if (m_spells.mage.pATuoSiZhiGun &&
             CanTryToCastSpell(pVictim, m_spells.mage.pATuoSiZhiGun) &&
-            (me->GetDistance(pVictim) < 40.0f) &&
             !pVictim->HasAura(34003))
         {
             if (DoCastSpell(pVictim, m_spells.mage.pATuoSiZhiGun) == SPELL_CAST_OK)
