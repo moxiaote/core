@@ -363,6 +363,12 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
                             damage = damage + m_casterUnit->GetMaxHealth() * 0.04f;
                         break;
                     }
+                    case 34528: // Voidwalker - Heartstopper Aura
+                    {
+                        if (m_casterUnit)
+                            damage = damage + m_casterUnit->GetMaxHealth() * 0.02f;
+                        break;
+                    }
                 }
                 break;
             }
@@ -823,7 +829,7 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                     if (!m_casterUnit)
                         return;
                     // Kang Mo Qi Shu
-                    m_casterUnit->CastCustomSpell(m_casterUnit, 34337, -dither((m_casterUnit->GetStat(STAT_STRENGTH) + m_casterUnit->GetStat(STAT_AGILITY) + m_casterUnit->GetStat(STAT_STAMINA) + m_casterUnit->GetStat(STAT_INTELLECT) + m_casterUnit->GetStat(STAT_SPIRIT)) * 0.25f), {}, {}, true);
+                    m_casterUnit->CastCustomSpell(m_casterUnit, 34337, -dither((m_casterUnit->GetStat(STAT_STRENGTH) + m_casterUnit->GetStat(STAT_AGILITY) + m_casterUnit->GetStat(STAT_STAMINA) + m_casterUnit->GetStat(STAT_INTELLECT) + m_casterUnit->GetStat(STAT_SPIRIT)) * 0.45f), {}, {}, true);
                     return;
                 }
                 case 34339:
@@ -1007,6 +1013,52 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                         m_casterUnit->CastCustomSpell(m_casterUnit, 34498, -dither(m_casterUnit->GetStat(STAT_SPIRIT) * 0.2f), {}, {}, true);
                     return;
                 }
+                case 34524:
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    if (!m_casterUnit)
+                        return;
+                    // Horn of Dragonborn
+                    if (Player* player = m_casterUnit->ToPlayer())
+                    {
+                        uint32 questId = 0;
+                        switch (player->GetRace())
+                        {
+                            case RACE_HUMAN:
+                            case RACE_DWARF:
+                            case RACE_NIGHTELF:
+                            case RACE_GNOME:
+                                questId = 10011;
+                                break;
+                            case RACE_ORC:
+                            case RACE_UNDEAD:
+                            case RACE_TAUREN:
+                            case RACE_TROLL:
+                                questId = 10012;
+                                break;
+                        }
+                        if (questId && player->GetQuestStatus(questId) == QUEST_STATUS_COMPLETE)
+                        {
+                            if (Pet* pet = player->GetPet())
+                            {
+                                pet->Unsummon(PET_SAVE_NOT_IN_SLOT);
+                                if (player->GetClass() == CLASS_WARLOCK && (pet->GetEntry() == 417 || pet->GetEntry() == 1860 || pet->GetEntry() == 1863))
+                                    player->AddItem(6265);
+                            }
+                            player->SetCheatFly(true, false);
+                            player->CastSpell(player, 34506, true);
+                            player->SetObjectScale(0.5f);
+                            player->UpdateModelData();
+                            player->SendSysMessage("Jump to switch from flying to running.");
+                        }
+                        else
+                        {
+                            player->SendSysMessage("Only dragonborn can do.");
+                        }
+                    }
+                    return;
+                }
                 case 34499:
                 {
                     if (m_caster->GetTypeId() != TYPEID_PLAYER)
@@ -1021,6 +1073,7 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                             if (Pet* pet = player->GetPet())
                                 pet->Unsummon(PET_SAVE_NOT_IN_SLOT);
                             player->SetCheatFly(true, false);
+                            player->CastSpell(player, 34506, true);
                             player->SendSysMessage("Jump to switch from flying to running.");
                         }
                         else
@@ -1028,6 +1081,41 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                             player->SendSysMessage("Only mage can do.");
                         }
                     }
+                    return;
+                }
+                case 34504:
+                {
+                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
+                        return;
+                    if (!m_casterUnit)
+                        return;
+                    // Ming Zun Liu Li Ti
+                    m_casterUnit->CastCustomSpell(m_casterUnit, 34505, -dither(m_casterUnit->GetStat(STAT_AGILITY) * 0.35f), {}, {}, true);
+                    return;
+                }
+                case 34512:
+                {
+                    if (!m_casterUnit)
+                        return;
+                    // Ji Feng Bu
+                    m_casterUnit->CastSpell(m_casterUnit, 34107, true);
+                    m_casterUnit->CastSpell(m_casterUnit, 34111, true);
+                    return;
+                }
+                case 34538:
+                {
+                    if (m_caster->GetTypeId() != TYPEID_UNIT)
+                        return;
+                    if (!m_casterUnit)
+                        return;
+                    // Eye of Kilrogg - Demonic Circle : Summon
+                    if (Player* pCharmer = ::ToPlayer(m_casterUnit->GetCharmer()))
+                    {
+                        if (pCharmer->HasItemCount(6265, 1))
+                            pCharmer->DestroyItemCount(6265, 1, true);
+                        CharacterDatabase.PExecute("replace into `character_warlock_demonic_circle` (`guid`, `map_id`, `instance_id`, `position_x`, `position_y`, `position_z`, `orientation`, `timer`) VALUES (%u, %u, %u, %f, %f, %f, %f, %u)", pCharmer->GetObjectGuid(), m_casterUnit->GetMapId(), m_casterUnit->GetInstanceId(), m_casterUnit->GetPositionX(), m_casterUnit->GetPositionY(), m_casterUnit->GetPositionZ(), m_casterUnit->GetOrientation(), getTimestamp());                        
+                    }
+                    m_casterUnit->DealDamage(m_casterUnit, m_casterUnit->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
                     return;
                 }
                 case 8344: // Universal Remote
@@ -1392,12 +1480,6 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                     m_casterUnit->CastSpell(m_casterUnit, spellId, true, nullptr);
                     return;
                 }
-                case 17770:                                 // Wolfshead Helm Energy
-                {
-                    if (m_casterUnit)
-                        m_casterUnit->CastSpell(m_casterUnit, 29940, true, nullptr);
-                    return;
-                }
                 case 17950:                                 // Shadow Portal
                 {
                     if (!unitTarget)
@@ -1495,12 +1577,6 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                     damage = dither(damage * (pPlayer->GetInt32Value(UNIT_FIELD_ATTACK_POWER)) / 100);
                     if (damage > 0)
                         pPlayer->CastCustomSpell(pPlayer, 23234, (int32)(damage), {}, {}, true, nullptr);
-                    return;
-                }
-                case 20577:                                 // Cannibalize
-                {
-                    if (m_casterUnit && (unitTarget || corpseTarget))
-                        m_casterUnit->CastSpell(m_casterUnit, 20578, true, nullptr);
                     return;
                 }
                 case 21147:                                 // Arcane Vacuum
@@ -3416,6 +3492,10 @@ void Spell::EffectSummonGuardian(SpellEffectIndex effIdx)
         }
     }
 
+    // Special case: Pet 200149 (Blessed Hammer) always matches caster level
+    if (petEntry == 200149 && m_casterUnit->GetTypeId() == TYPEID_PLAYER)
+        level = m_casterUnit->GetLevel();
+
     // select center of summon position
     float centerX = m_targets.m_destX;
     float centerY = m_targets.m_destY;
@@ -3778,7 +3858,7 @@ void Spell::EffectSummonPet(SpellEffectIndex effIdx)
                     {
                         uint32 spellId = itr->first;
                         ++itr;
-                        pet->unlearnSpell(spellId, false);
+                        pet->UnlearnSpell(spellId, false);
                     }
 
                     pet->SetTP(pet->GetLevel() * (pet->GetLoyaltyLevel() - 1));
@@ -3799,7 +3879,7 @@ void Spell::EffectSummonPet(SpellEffectIndex effIdx)
                     {
                         uint32 spellId = itr->first;
                         ++itr;
-                        pet->unlearnSpell(spellId, false);
+                        pet->UnlearnSpell(spellId, false);
                     }
 
                     pet->SetTP(pet->GetLevel() * pet->GetLoyaltyLevel());
@@ -3841,7 +3921,7 @@ ObjectGuid Unit::EffectSummonPet(uint32 spellId, uint32 petEntry, uint32 petLeve
     // petEntry==0 for hunter "call pet" (current pet summoned if any)
     if (GetTypeId() == TYPEID_PLAYER && newSummon->LoadPetFromDB((Player*)this, petEntry))
     {
-        if (newSummon->getPetType() == SUMMON_PET)
+        if (newSummon->GetPetType() == SUMMON_PET)
         {
             // Remove Demonic Sacrifice auras (known pet)
             Unit::AuraList const& auraClassScripts = GetAurasByType(SPELL_AURA_OVERRIDE_CLASS_SCRIPTS);
@@ -3877,7 +3957,7 @@ ObjectGuid Unit::EffectSummonPet(uint32 spellId, uint32 petEntry, uint32 petLeve
     }
     newSummon->SetSummonPoint(pos);
 
-    newSummon->setPetType(SUMMON_PET);
+    newSummon->SetPetType(SUMMON_PET);
     newSummon->SetOwnerGuid(GetObjectGuid());
     newSummon->SetCreatorGuid(GetObjectGuid());
     newSummon->SetFactionTemplateId(GetFactionTemplateId());
@@ -3895,7 +3975,7 @@ ObjectGuid Unit::EffectSummonPet(uint32 spellId, uint32 petEntry, uint32 petLeve
     else
         newSummon->SetReactState(REACT_DEFENSIVE);
 
-    if (newSummon->getPetType() == SUMMON_PET)
+    if (newSummon->GetPetType() == SUMMON_PET)
     {
         // Remove Demonic Sacrifice auras (new pet)
         Unit::AuraList const& auraClassScripts = GetAurasByType(SPELL_AURA_OVERRIDE_CLASS_SCRIPTS);
@@ -3917,7 +3997,7 @@ ObjectGuid Unit::EffectSummonPet(uint32 spellId, uint32 petEntry, uint32 petLeve
         else
             newSummon->InitializeDefaultName();
     }
-    else if (newSummon->getPetType() == HUNTER_PET)
+    else if (newSummon->GetPetType() == HUNTER_PET)
     {
         newSummon->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PET_RENAME);
         newSummon->InitializeDefaultName();
@@ -3966,7 +4046,7 @@ void Spell::EffectLearnPetSpell(SpellEffectIndex effIdx)
     if (!pet->CanLearnPetSpell(pLearnSpell->Id))
         return;
 
-    pet->SetTP(pet->m_TrainingPoints - pet->GetTPForSpell(pLearnSpell->Id));
+    pet->SetTP(pet->m_trainingPoints - pet->GetTPForSpell(pLearnSpell->Id));
     pet->LearnSpell(pLearnSpell->Id);
 
     pet->SavePetToDB(PET_SAVE_AS_CURRENT);
@@ -4058,7 +4138,7 @@ void Spell::EffectWeaponDmg(SpellEffectIndex effIdx)
                 normalized = true;
                 break;
             case SPELL_EFFECT_WEAPON_PERCENT_DAMAGE:
-                if (m_casterUnit->IsCreature() && !((Creature*)m_casterUnit)->HasWeapon() && !(m_spellInfo->Id == 34105) && !(m_spellInfo->Id == 34112) && !(m_spellInfo->Id == 34078) && !(m_spellInfo->Id == 34115) && !(m_spellInfo->Id == 34096) && !(m_spellInfo->Id == 34097) && !(m_spellInfo->Id == 34067) && !(m_spellInfo->Id == 34071) && !(m_spellInfo->Id == 34060) && !(m_spellInfo->Id == 34061) && !(m_spellInfo->Id == 34085) && !(m_spellInfo->Id == 34091) && !(m_spellInfo->Id == 34196))
+                if (m_casterUnit->IsCreature() && !((Creature*)m_casterUnit)->HasWeapon() && !(m_spellInfo->Id == 34105) && !(m_spellInfo->Id == 34112) && !(m_spellInfo->Id == 34078) && !(m_spellInfo->Id == 34115) && !(m_spellInfo->Id == 34096) && !(m_spellInfo->Id == 34097) && !(m_spellInfo->Id == 34067) && !(m_spellInfo->Id == 34071) && !(m_spellInfo->Id == 34060) && !(m_spellInfo->Id == 34061) && !(m_spellInfo->Id == 34085) && !(m_spellInfo->Id == 34091) && !(m_spellInfo->Id == 34196) && !(m_spellInfo->Id == 34522))
                 {
                     // creatures without weapons do static damage with SPELL_EFFECT_WEAPON_PERCENT_DAMAGE
                     weaponDamagePercentMod = 0.0f;
@@ -4124,7 +4204,8 @@ void Spell::EffectWeaponDmg(SpellEffectIndex effIdx)
         bonus *= 0.7f;
     // Morphling - Frostbolt Volley & Frost Nova
     // Spirit Bear - Radiance
-    if ((m_spellInfo->Id == 34060 || m_spellInfo->Id == 34061 || m_spellInfo->Id == 34078) && (unitTarget->HasAura(118) || unitTarget->HasAura(12824) || unitTarget->HasAura(12825) || unitTarget->HasAura(12826) || unitTarget->HasAura(28271) || unitTarget->HasAura(28272) || unitTarget->HasAura(28270) || unitTarget->HasAura(13327) || unitTarget->HasAura(1090) || unitTarget->HasAura(2637) || unitTarget->HasAura(18657) || unitTarget->HasAura(18658) || unitTarget->HasAura(19503) || unitTarget->HasAura(1499) || unitTarget->HasAura(14310) || unitTarget->HasAura(14311) || unitTarget->HasAura(19386) || unitTarget->HasAura(24132) || unitTarget->HasAura(24133) || unitTarget->HasAura(2878) || unitTarget->HasAura(5627) || unitTarget->HasAura(10326) || unitTarget->HasAura(20066) || unitTarget->HasAura(9484) || unitTarget->HasAura(9485) || unitTarget->HasAura(10955) || unitTarget->HasAura(1776) || unitTarget->HasAura(1777) || unitTarget->HasAura(8629) || unitTarget->HasAura(11285) || unitTarget->HasAura(11286) || unitTarget->HasAura(2094) || unitTarget->HasAura(6770) || unitTarget->HasAura(2070) || unitTarget->HasAura(11297) || unitTarget->HasAura(6358)))
+    // Blessed Hammer - Divine Storm
+    if ((m_spellInfo->Id == 34060 || m_spellInfo->Id == 34061 || m_spellInfo->Id == 34078 || m_spellInfo->Id == 34522) && (unitTarget->HasAura(118) || unitTarget->HasAura(12824) || unitTarget->HasAura(12825) || unitTarget->HasAura(12826) || unitTarget->HasAura(28271) || unitTarget->HasAura(28272) || unitTarget->HasAura(28270) || unitTarget->HasAura(13327) || unitTarget->HasAura(1090) || unitTarget->HasAura(2637) || unitTarget->HasAura(18657) || unitTarget->HasAura(18658) || unitTarget->HasAura(19503) || unitTarget->HasAura(1499) || unitTarget->HasAura(14310) || unitTarget->HasAura(14311) || unitTarget->HasAura(19386) || unitTarget->HasAura(24132) || unitTarget->HasAura(24133) || unitTarget->HasAura(2878) || unitTarget->HasAura(5627) || unitTarget->HasAura(10326) || unitTarget->HasAura(20066) || unitTarget->HasAura(9484) || unitTarget->HasAura(9485) || unitTarget->HasAura(10955) || unitTarget->HasAura(1776) || unitTarget->HasAura(1777) || unitTarget->HasAura(8629) || unitTarget->HasAura(11285) || unitTarget->HasAura(11286) || unitTarget->HasAura(2094) || unitTarget->HasAura(6770) || unitTarget->HasAura(2070) || unitTarget->HasAura(11297) || unitTarget->HasAura(6358)))
         bonus = 0.f;
     // prevent negative damage
     m_damage += bonus > 0.f ? bonus : 0.f;

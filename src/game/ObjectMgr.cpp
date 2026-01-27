@@ -4088,11 +4088,15 @@ void ObjectMgr::LoadItemPrototypes()
                     }
                 }
 
+                // this check is disabled because 12344 uses spell category that does not exist in the dbc
+                // yet item has this category assigned in both vanilla wdb files and classic db2 files
+                /*
                 if (proto->Spells[j].SpellCategory > 0)
                 {
                     if (!sSpellCategoryStore.LookupEntry(proto->Spells[j].SpellCategory))
                         sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, "Item (Entry: %u) has wrong (not existing) spell category in spellcategory_%d (%u)", i, j + 1, proto->Spells[j].SpellCategory);
                 }
+                */
             }
         }
 
@@ -5256,7 +5260,7 @@ void ObjectMgr::LoadGroups()
                  "(SELECT COUNT(*) FROM `character_instance` WHERE `guid` = `group_instance`.`leader_guid` AND `instance` = `group_instance`.`instance` AND `permanent` = 1 LIMIT 1), "
                  // 6
                  " `groups`.`group_id` "
-                 "FROM `group_instance` LEFT JOIN `instance` ON `instance` = `id` LEFT JOIN `groups` ON `groups`.`leader_guid` = `group_instance`.`leader_guid` ORDER BY `leader_guid`"
+                 "FROM `group_instance` LEFT JOIN `instance` ON `instance` = `id` LEFT JOIN `groups` ON `groups`.`leader_guid` = `group_instance`.`leader_guid` ORDER BY `group_instance`.`leader_guid`"
              );
 
     if (!result)
@@ -6228,18 +6232,18 @@ void ObjectMgr::LoadPetCreateSpells()
         bool have_spell_db = false;
         for (int i = 0; i < 4; ++i)
         {
-            PetCreateSpell.spellid[i] = fields[i + 1].GetUInt32();
+            PetCreateSpell.spellId[i] = fields[i + 1].GetUInt32();
 
-            if (!PetCreateSpell.spellid[i])
+            if (!PetCreateSpell.spellId[i])
                 continue;
 
             have_spell_db = true;
 
-            SpellEntry const* i_spell = sSpellMgr.GetSpellEntry(PetCreateSpell.spellid[i]);
+            SpellEntry const* i_spell = sSpellMgr.GetSpellEntry(PetCreateSpell.spellId[i]);
             if (!i_spell)
             {
-                sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, "Spell %u listed in `petcreateinfo_spell` does not exist", PetCreateSpell.spellid[i]);
-                PetCreateSpell.spellid[i] = 0;
+                sLog.Out(LOG_DBERROR, LOG_LVL_MINIMAL, "Spell %u listed in `petcreateinfo_spell` does not exist", PetCreateSpell.spellId[i]);
+                PetCreateSpell.spellId[i] = 0;
                 continue;
             }
 
@@ -6301,7 +6305,7 @@ void ObjectMgr::LoadPetCreateSpells()
                     petspell_id = cache_itr->second;
             }
 
-            PetCreateSpell.spellid[i] = petspell_id;
+            PetCreateSpell.spellId[i] = petspell_id;
         }
 
         m_PetCreateSpellMap[itr.first] = PetCreateSpell;

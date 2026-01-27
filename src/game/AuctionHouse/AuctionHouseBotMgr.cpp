@@ -113,9 +113,9 @@ void AuctionHouseBotMgr::Update(bool force /* = false */)
         AddItem(item, auctionHouse);
         auctions++;
         updateCount++;
-        if (m_config->enable && !force && updateCount >= 100)
+        if (m_config->enable && !force && updateCount >= 50)
         {
-            break; // Limit to 100 items per update to avoid performance issues
+            break; // Limit to 50 items per update to avoid performance issues
         }
     }
 }
@@ -142,10 +142,15 @@ void AuctionHouseBotMgr::AddItem(AuctionHouseBotEntry e, AuctionHouseObject *auc
         if (urand(1, 100) < 95)
             return; // 95% chance to not add this item
     }
-    else if (prototype->ItemId == 26030 || (prototype->ItemId >= 26052 && prototype->ItemId <= 26135))
+    else if (prototype->ItemId >= 26052 && prototype->ItemId <= 26135)
     {
         if (urand(1, 100) < 90)
             return; // 90% chance to not add this item
+    }
+    else if (prototype->ItemId == 26030)
+    {
+        if (urand(1, 100) < 80)
+            return; // 80% chance to not add this item
     }
 
     Item* item = Item::CreateItem(e.item, 1);
