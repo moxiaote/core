@@ -884,6 +884,9 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 {
                     if (this->GetTypeId() != TYPEID_PLAYER)
                         return SPELL_AURA_PROC_FAILED;
+                    // immediately finishes the cooldown on druid's Innervate/Hurricane
+                    auto cdCheck = [](SpellEntry const & spellEntry) -> bool { return ((spellEntry.Id == 29166 || (spellEntry.SpellFamilyName == SPELLFAMILY_DRUID && spellEntry.SpellFamilyFlags == 0x400000)) && spellEntry.GetRecoveryTime() > 0); };
+                    static_cast<Player*>(this)->RemoveSomeCooldown(cdCheck);
                     if (!pVictim)
                         return SPELL_AURA_PROC_FAILED;
                     target = pVictim;
@@ -983,13 +986,13 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     // heal amount
                     if (this->HasAura(23836))
                     {
-                        basepoints[0] = dither(52.5f * amount / 100);
-                        basepoints[1] = dither(37.5f * amount / 100);
+                        basepoints[0] = dither(45 * amount / 100);
+                        basepoints[1] = dither(30 * amount / 100);
                     }
                     else
                     {
-                        basepoints[0] = dither(35 * amount / 100);
-                        basepoints[1] = dither(25 * amount / 100);
+                        basepoints[0] = dither(30 * amount / 100);
+                        basepoints[1] = dither(20 * amount / 100);
                     }
                     target = this;
                     triggered_spell_id = 34530;
@@ -1004,9 +1007,21 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                         return SPELL_AURA_PROC_FAILED;
                     // mana burn amount
                     if (this->HasAura(23840))
-                        basepoints[0] = dither(300 * amount / 100);
+                    {
+                        if (urand(1, 100) < 33)
+                        {
+                            this->CastCustomSpell(pVictim, 34541, {}, dither(300 * amount / 100), {}, true, castItem, triggeredByAura);
+                            return SPELL_AURA_PROC_OK;
+                        }
+                        else
+                        {
+                            basepoints[0] = dither(300 * amount / 100);
+                        }
+                    }
                     else
+                    {
                         basepoints[0] = dither(200 * amount / 100);
+                    }
                     target = pVictim;
                     triggered_spell_id = 34532;
                     break;                               // no hidden cooldown
@@ -1329,6 +1344,92 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 {
                     target = this;
                     triggered_spell_id = 28848;
+                    break;
+                }
+                // Feline Swiftness
+                case 24864:
+                case 24867:
+                {
+                    target = this;
+                    triggered_spell_id = 34544;
+                    break;
+                }
+                // Mangle rank 1
+                case 16966:
+                {
+                    if (this->GetTypeId() != TYPEID_PLAYER)
+                        return SPELL_AURA_PROC_FAILED;
+                    if (!pVictim)
+                        return SPELL_AURA_PROC_FAILED;
+                    Unit::AuraList const& auras = pVictim->GetAurasByType(SPELL_AURA_PERIODIC_DAMAGE);
+                    uint32 bleed_count = 0;
+                    for (const auto i : auras)
+                    {
+                        // Rip
+                        if (i->GetSpellProto()->IsFitToFamily<SPELLFAMILY_DRUID, CF_DRUID_RIP_BITE>() &&
+                            i->GetCasterGuid() == this->GetObjectGuid())
+                        {
+                            bleed_count++;
+                            break;
+                        }
+                    }
+                    for (const auto i : auras)
+                    {
+                        // Rake
+                        if (i->GetSpellProto()->IsFitToFamily<SPELLFAMILY_DRUID, CF_DRUID_RAKE_CLAW>() &&
+                            i->GetCasterGuid() == this->GetObjectGuid())
+                        {
+                            bleed_count++;
+                            break;
+                        }
+                    }
+                    if (!bleed_count)
+                        return SPELL_AURA_PROC_FAILED;
+                    // heal amount
+                    basepoints[0] = dither(25 * bleed_count * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34543;
+                    break;
+                }
+                // Mangle rank 2
+                case 16968:
+                {
+                    if (this->GetTypeId() != TYPEID_PLAYER)
+                        return SPELL_AURA_PROC_FAILED;
+                    if (!pVictim)
+                        return SPELL_AURA_PROC_FAILED;
+                    Unit::AuraList const& auras = pVictim->GetAurasByType(SPELL_AURA_PERIODIC_DAMAGE);
+                    uint32 bleed_count = 0;
+                    for (const auto i : auras)
+                    {
+                        // Rip
+                        if (i->GetSpellProto()->IsFitToFamily<SPELLFAMILY_DRUID, CF_DRUID_RIP_BITE>() &&
+                            i->GetCasterGuid() == this->GetObjectGuid())
+                        {
+                            bleed_count++;
+                            break;
+                        }
+                    }
+                    for (const auto i : auras)
+                    {
+                        // Rake
+                        if (i->GetSpellProto()->IsFitToFamily<SPELLFAMILY_DRUID, CF_DRUID_RAKE_CLAW>() &&
+                            i->GetCasterGuid() == this->GetObjectGuid())
+                        {
+                            bleed_count++;
+                            break;
+                        }
+                    }
+                    if (!bleed_count)
+                        return SPELL_AURA_PROC_FAILED;
+                    // heal amount
+                    if (pVictim->GetHealthPercent() < 50.0f)
+                        bleed_count *= 2;
+                    if (this->GetHealthPercent() < 50.0f)
+                        bleed_count *= 2;
+                    basepoints[0] = dither(25 * bleed_count * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34543;
                     break;
                 }
             }

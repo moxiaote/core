@@ -381,10 +381,12 @@ AutoAttackCheckResult Unit::CanAutoAttackTarget(Unit const* pVictim) const
 
 void Unit::DelayAutoAttacks()
 {
+    uint32 const attackDelay = std::max(sWorld.GetDelayUntilNextSpellBatchingInterval(), 100u);
+
     if (IsAttackReady(BASE_ATTACK))
-        SetAttackTimer(BASE_ATTACK, 100);
+        SetAttackTimer(BASE_ATTACK, attackDelay);
     if (HaveOffhandWeapon() && IsAttackReady(OFF_ATTACK))
-        SetAttackTimer(OFF_ATTACK, 100);
+        SetAttackTimer(OFF_ATTACK, attackDelay);
 }
 
 bool Unit::UpdateMeleeAttackingState()
@@ -6157,7 +6159,7 @@ float Unit::MeleeDamageBonusTaken(SpellCaster const* pCaster, float pdamage, Wea
 
     // differentiate for weapon damage based spells
     bool isWeaponDamageBasedSpell = !(spellProto && (damagetype == DOT || spellProto->HasEffect(SPELL_EFFECT_SCHOOL_DAMAGE)));
-    uint32 schoolMask       = spellProto ? spellProto->GetSpellSchoolMask() : uint32(pCaster->GetMeleeDamageSchoolMask());
+    uint32 schoolMask = spell ? spell->m_spellSchoolMask : (spellProto ? spellProto->GetSpellSchoolMask() : uint32(pCaster->GetMeleeDamageSchoolMask()));
 
     // FLAT damage bonus auras
     // =======================

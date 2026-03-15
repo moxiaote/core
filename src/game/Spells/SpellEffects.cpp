@@ -366,7 +366,7 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
                     case 34528: // Voidwalker - Heartstopper Aura
                     {
                         if (m_casterUnit)
-                            damage = damage + m_casterUnit->GetMaxHealth() * 0.02f;
+                            damage = damage + m_casterUnit->GetMaxHealth() * 0.015f;
                         break;
                     }
                 }
@@ -457,6 +457,13 @@ void Spell::EffectSchoolDMG(SpellEffectIndex effect_idx)
                     {
                         damage = damage + (m_casterUnit->GetStat(STAT_STAMINA) + m_casterUnit->GetStat(STAT_INTELLECT)) * 0.1f;
                     }
+                }
+                // Succubus - Lash of Pain
+                else if (m_spellInfo->IsFitToFamilyMask<CF_WARLOCK_SUCCUBUS_LASH_OF_PAIN>())
+                {
+                    if (m_casterUnit->HasAura(23836))
+                        if (urand(1, 100) < 25)
+                            m_casterUnit->CastSpell(unitTarget, 34542, true);
                 }
                 break;
             }
@@ -728,15 +735,6 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                     m_casterUnit->CastCustomSpell(m_casterUnit, 34198, dither(m_casterUnit->GetArmor() * 0.05f), {}, {}, true);
                     return;
                 }
-                case 34202:
-                {
-                    if (m_caster->GetTypeId() != TYPEID_PLAYER)
-                        return;
-                    // immediately finishes the cooldown on druid's Innervate
-                    auto cdCheck = [](SpellEntry const & spellEntry) -> bool { return ((spellEntry.Id == 29166) && spellEntry.GetRecoveryTime() > 0); };
-                    static_cast<Player*>(m_caster)->RemoveSomeCooldown(cdCheck);
-                    return;
-                }
                 case 34204:
                 {
                     if (m_caster->GetTypeId() != TYPEID_PLAYER)
@@ -763,7 +761,7 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                         return;
                     // Warlock Demonic Circle : Summon
                     if (Player* pCaster = static_cast<Player*>(m_caster))
-                        CharacterDatabase.PExecute("replace into `character_warlock_demonic_circle` (`guid`, `map_id`, `instance_id`, `position_x`, `position_y`, `position_z`, `orientation`, `timer`) VALUES (%u, %u, %u, %f, %f, %f, %f, %u)", pCaster->GetObjectGuid(), pCaster->GetMapId(), pCaster->GetInstanceId(), pCaster->GetPositionX(), pCaster->GetPositionY(), pCaster->GetPositionZ(), pCaster->GetOrientation(), getTimestamp());
+                        CharacterDatabase.PExecute("replace into `character_warlock_demonic_circle` (`guid`, `type`, `map_id`, `instance_id`, `position_x`, `position_y`, `position_z`, `orientation`, `timer`) VALUES (%u, %u, %u, %u, %f, %f, %f, %f, %u)", pCaster->GetObjectGuid(), 1, pCaster->GetMapId(), pCaster->GetInstanceId(), pCaster->GetPositionX(), pCaster->GetPositionY(), pCaster->GetPositionZ(), pCaster->GetOrientation(), getTimestamp());
                     return;
                 }
                 case 34295:
@@ -776,16 +774,31 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                         std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT position_x, position_y, position_z, orientation FROM `character_warlock_demonic_circle` WHERE `guid`='%u' and `map_id`='%u' and `timer`>='%u' and `timer`<='%u' and `instance_id`='%u'", pCaster->GetObjectGuid(), pCaster->GetMapId(), getTimestamp()-300, getTimestamp(), pCaster->GetInstanceId());
                         if (result)
                         {
-                            Field* fields = result->Fetch();
-                            float x = fields[0].GetFloat();
-                            float y = fields[1].GetFloat();
-                            float z = fields[2].GetFloat();
-                            float o = fields[3].GetFloat();
-                            if (pCaster->GetDistance(x,y,z) <= 50.0f)
+                            float maximumDistance = 0.0f;
+                            float maximumDistance_x = 0.0f;
+                            float maximumDistance_y = 0.0f;
+                            float maximumDistance_z = 0.0f;
+                            float maximumDistance_o = 0.0f;
+                            do
                             {
-                                pCaster->TeleportTo(pCaster->GetMapId(), x, y, z, o);
-                                pCaster->CastSpell(pCaster, 5579, true);
+                                Field* fields = result->Fetch();
+                                float x = fields[0].GetFloat();
+                                float y = fields[1].GetFloat();
+                                float z = fields[2].GetFloat();
+                                float o = fields[3].GetFloat();
+                                float distance = pCaster->GetDistance(x,y,z);
+                                if (distance <= 60.0f && distance >= maximumDistance)
+                                {
+                                    maximumDistance = distance;
+                                    maximumDistance_x = x;
+                                    maximumDistance_y = y;
+                                    maximumDistance_z = z;
+                                    maximumDistance_o = o;
+                                }
                             }
+                            while (result->NextRow());
+                            pCaster->TeleportTo(pCaster->GetMapId(), maximumDistance_x, maximumDistance_y, maximumDistance_z, maximumDistance_o);
+                            pCaster->CastSpell(pCaster, 5579, true);
                         }
                     }
                     return;
@@ -839,7 +852,10 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                     if (!m_casterUnit)
                         return;
                     // Zi Ran Zhi Xu
-                    m_casterUnit->CastCustomSpell(m_casterUnit, 34340, -dither((m_casterUnit->GetArmor() + m_casterUnit->GetMaxHealth()) * 0.01f), {}, {}, true);
+                    if (m_casterUnit->HasAura(768))
+                        m_casterUnit->CastCustomSpell(m_casterUnit, 34340, -dither(m_casterUnit->GetArmor() * 0.015f + m_casterUnit->GetMaxHealth() * 0.0225f), {}, {}, true);
+                    else
+                        m_casterUnit->CastCustomSpell(m_casterUnit, 34340, -dither(m_casterUnit->GetArmor() * 0.01f + m_casterUnit->GetMaxHealth() * 0.015f), {}, {}, true);
                     return;
                 }
                 case 34348:
@@ -1110,12 +1126,12 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                         return;
                     // Eye of Kilrogg - Demonic Circle : Summon
                     if (Player* pCharmer = ::ToPlayer(m_casterUnit->GetCharmer()))
-                    {
-                        if (pCharmer->HasItemCount(6265, 1))
+                        if (pCharmer->GetClass() == CLASS_WARLOCK && pCharmer->HasItemCount(6265, 1))
+                        {
                             pCharmer->DestroyItemCount(6265, 1, true);
-                        CharacterDatabase.PExecute("replace into `character_warlock_demonic_circle` (`guid`, `map_id`, `instance_id`, `position_x`, `position_y`, `position_z`, `orientation`, `timer`) VALUES (%u, %u, %u, %f, %f, %f, %f, %u)", pCharmer->GetObjectGuid(), m_casterUnit->GetMapId(), m_casterUnit->GetInstanceId(), m_casterUnit->GetPositionX(), m_casterUnit->GetPositionY(), m_casterUnit->GetPositionZ(), m_casterUnit->GetOrientation(), getTimestamp());                        
-                    }
-                    m_casterUnit->DealDamage(m_casterUnit, m_casterUnit->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
+                            CharacterDatabase.PExecute("replace into `character_warlock_demonic_circle` (`guid`, `type`, `map_id`, `instance_id`, `position_x`, `position_y`, `position_z`, `orientation`, `timer`) VALUES (%u, %u, %u, %u, %f, %f, %f, %f, %u)", pCharmer->GetObjectGuid(), 2, m_casterUnit->GetMapId(), m_casterUnit->GetInstanceId(), m_casterUnit->GetPositionX(), m_casterUnit->GetPositionY(), m_casterUnit->GetPositionZ(), m_casterUnit->GetOrientation(), getTimestamp());                        
+                            m_casterUnit->DealDamage(m_casterUnit, m_casterUnit->GetHealth(), nullptr, DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr, false);
+                        }
                     return;
                 }
                 case 8344: // Universal Remote

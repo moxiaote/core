@@ -1035,12 +1035,12 @@ void Player::OnMirrorTimerExpirationPulse(MirrorTimer::Type timer)
         case MirrorTimer::ENVIRONMENTAL:
             if (IsInMagma() && GetMapId() != 557)
                 EnvironmentalDamage(DAMAGE_LAVA, urand(sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MIN), sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MAX)));
-            // FIXME: Need to skip slime damage in Undercity, maybe someone can find better way to handle environmental damage
-            //if (IsInSlime() && m_zoneUpdateId != 1497 && m_zoneUpdateId != 3456)
-            //    EnvironmentalDamage(DAMAGE_SLIME, urand(sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MIN), sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MAX)));
             // NAXX Slime 34130
             //if (IsInSlime() && m_zoneUpdateId == 3456)
             //    CastSpell(this, 34130, true);
+            // Exclude Slime in Undercity
+            if (IsInSlime() && m_zoneUpdateId != 1497)
+                EnvironmentalDamage(DAMAGE_SLIME, urand(sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MIN), sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MAX)));
             break;
         case MirrorTimer::FEIGNDEATH:
             // Vanilla: kill player on feigning death for too long
@@ -2326,7 +2326,8 @@ void Player::RewardRage(uint32 damage, bool attacker)
                 jiefufuti = 99;
             if (GetLevel() < 60 && GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
                 jiefufuti = 0;
-            damage *= dither((100.0f / (100.0f - jiefufuti)));
+            if (damage > 1)
+                damage *= dither((100.0f / (100.0f - jiefufuti)));
         }
         addRage = damage / rageConversion * 2.5f;
 
@@ -10462,31 +10463,34 @@ Item* Player::StoreNewItem(ItemPosCountVec const& dest, uint32 item, bool update
         //if (GetMap()->IsRaid() && (pItem->GetProto()->Bonding == BIND_WHEN_PICKED_UP || pItem->GetProto()->Bonding == BIND_QUEST_ITEM) && (pItem->GetProto()->Class == ITEM_CLASS_WEAPON || pItem->GetProto()->Class == ITEM_CLASS_ARMOR))
         if (GetMap()->IsRaid() && (pItem->GetProto()->Bonding == BIND_WHEN_PICKED_UP || pItem->GetProto()->Bonding == BIND_QUEST_ITEM))
         {
-            pItem->SetLootingTime(time(nullptr));
-            pItem->SetDurationRaidLooting(sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME));
-
-            std::ostringstream ss;
-            if (Group* pGroup = GetGroup())
+            if (uint32(sMapPersistentStateMgr.GetScheduler().GetResetTimeFor(GetMap()->GetId()) - time(nullptr)) > sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME))
             {
-                ss << ":";
-                for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
+                pItem->SetLootingTime(time(nullptr));
+                pItem->SetDurationRaidLooting(sWorld.getConfig(CONFIG_UINT32_TRADINGRAIDLOOT_TIME));
+
+                std::ostringstream ss;
+                if (Group* pGroup = GetGroup())
                 {
-                    if (Player* pMember = itr->getSource())
+                    ss << ":";
+                    for (GroupReference* itr = pGroup->GetFirstMember(); itr != nullptr; itr = itr->next())
                     {
-                        bool isPartybotLoad = false;
-                        if (pMember->IsBot())
+                        if (Player* pMember = itr->getSource())
                         {
-                            std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery("SELECT 1 FROM `characters` WHERE `guid` = '%u' and `name` = '%s'", pMember->GetObjectGuid(), pMember->GetName()));
-                            if (result)
-                                isPartybotLoad = true;
+                            bool isPartybotLoad = false;
+                            if (pMember->IsBot())
+                            {
+                                std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery("SELECT 1 FROM `characters` WHERE `guid` = '%u' and `name` = '%s'", pMember->GetObjectGuid(), pMember->GetName()));
+                                if (result)
+                                    isPartybotLoad = true;
+                            }
+                            if ((pMember->IsBot() && !isPartybotLoad) || !pMember->GetMap()->IsRaid() || pMember->GetMap()->GetInstanceId() != GetMap()->GetInstanceId())
+                                continue;
+                            ss << pMember->GetGUIDLow() << ":";
                         }
-                        if ((pMember->IsBot() && !isPartybotLoad) || !pMember->GetMap()->IsRaid() || pMember->GetMap()->GetInstanceId() != GetMap()->GetInstanceId())
-                            continue;
-                        ss << pMember->GetGUIDLow() << ":";
                     }
                 }
+                pItem->SetRaidGroup(ss.str().c_str());
             }
-            pItem->SetRaidGroup(ss.str().c_str());
         }
 
         ItemAddedQuestCheck(item, count);
@@ -18352,8 +18356,10 @@ bool Player::ActivateTaxiPathTo(std::vector<uint32> const& nodes, Creature const
         RemoveSpellsCausingAura(SPELL_AURA_MOUNTED);
 
         if (IsInDisallowedMountForm())
+        {
             RemoveSpellsCausingAura(SPELL_AURA_MOD_SHAPESHIFT);
-
+            RemoveSpellsCausingAura(SPELL_AURA_TRANSFORM);
+        }
         if (Spell* spell = GetCurrentSpell(CURRENT_GENERIC_SPELL))
             if (spell->m_spellInfo->Id != spellid)
                 InterruptSpell(CURRENT_GENERIC_SPELL, false);

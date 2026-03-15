@@ -653,6 +653,8 @@ void World::LoadConfigSettings(bool reload)
 
     setConfig(CONFIG_BOT_LOOT_MONEY,    "BotLootMoney",  0);
     setConfig(CONFIG_BOT_LOOT_ROLL,    "BotLootRoll",  0);
+    setConfig(CONFIG_BOT_DISPEL_PET_OUT_OF_COMBAT,    "BotDispelPetOutOfCombat",  1);
+    setConfig(CONFIG_BOT_DISPEL_PET_IN_COMBAT,    "BotDispelPetInCombat",  0);
     setConfig(CONFIG_BATTLE_BOT_QUEUED_MAX_COUNT,    "BattleBot.QueuedMaxCount",  0);
 
     setConfig(CONFIG_UINT32_BUFF_JIEFUFUTI,    "Buff.JieFuFuTi",  99);
@@ -3276,6 +3278,14 @@ time_t World::GetWorldUpdateTimerInterval(WorldTimers timer)
         return 0;
 
     return m_timers[timer].GetInterval();
+}
+
+uint32 World::GetDelayUntilNextSpellBatchingInterval()
+{
+    if (!getConfig(CONFIG_UINT32_SPELL_EFFECT_DELAY))
+        return 0;
+
+    return (getConfig(CONFIG_UINT32_SPELL_EFFECT_DELAY) - (WorldTimer::getMSTime() % getConfig(CONFIG_UINT32_SPELL_EFFECT_DELAY)));
 }
 
 void SessionPacketSendTask::operator()()

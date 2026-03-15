@@ -46,6 +46,7 @@
 #include "ZoneScript.h"
 #include "TradeData.h"
 #include "Geometry.h"
+#include "Anticheat.h"
 
 using namespace Spells;
 
@@ -109,7 +110,7 @@ void SpellCastTargets::setGOTarget(GameObject* target)
 {
     m_GOTarget = target;
     m_GOTargetGUID = target->GetObjectGuid();
-    //    m_targetMask |= TARGET_FLAG_OBJECT;
+    //    m_targetMask |= TARGET_FLAG_GAMEOBJECT;
 }
 
 void SpellCastTargets::setItemTarget(Item* item)
@@ -175,19 +176,26 @@ void SpellCastTargets::read(ByteBuffer& data, Unit* caster)
         return;
     }
 
-    // TARGET_FLAG_UNK2 is used for non-combat pets, maybe other?
-    if (m_targetMask & (TARGET_FLAG_UNIT | TARGET_FLAG_UNK2))
+    // TARGET_FLAG_UNIT_MINIPET is used for non-combat pets, maybe other?
+    if (m_targetMask & (TARGET_FLAG_UNIT))
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
         data >> m_unitTargetGUID.ReadAsPacked();
 #else
         data >> m_unitTargetGUID;
 #endif
 
-    if (m_targetMask & (TARGET_FLAG_OBJECT | TARGET_FLAG_OBJECT_UNK))
+    if (m_targetMask & (TARGET_FLAG_GAMEOBJECT))
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
         data >> m_GOTargetGUID.ReadAsPacked();
 #else
         data >> m_GOTargetGUID;
+#endif
+
+    if (m_targetMask & (TARGET_FLAG_CORPSE_ALLY | TARGET_FLAG_CORPSE_ENEMY))
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
+        data >> m_CorpseTargetGUID.ReadAsPacked();
+#else
+        data >> m_CorpseTargetGUID;
 #endif
 
     if ((m_targetMask & (TARGET_FLAG_ITEM | TARGET_FLAG_TRADE_ITEM)) && caster->IsPlayer())
@@ -214,13 +222,6 @@ void SpellCastTargets::read(ByteBuffer& data, Unit* caster)
     if (m_targetMask & TARGET_FLAG_STRING)
         data >> m_strTarget;
 
-    if (m_targetMask & (TARGET_FLAG_CORPSE | TARGET_FLAG_PVP_CORPSE))
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
-        data >> m_CorpseTargetGUID.ReadAsPacked();
-#else
-        data >> m_CorpseTargetGUID;
-#endif
-
     // find real units/GOs
     Update(caster);
 }
@@ -229,7 +230,7 @@ void SpellCastTargets::write(ByteBuffer& data) const
 {
     data << uint16(m_targetMask);
 
-    if (m_targetMask & (TARGET_FLAG_UNIT | TARGET_FLAG_PVP_CORPSE | TARGET_FLAG_OBJECT | TARGET_FLAG_CORPSE | TARGET_FLAG_UNK2))
+    if (m_targetMask & (TARGET_FLAG_UNIT | TARGET_FLAG_CORPSE_ENEMY | TARGET_FLAG_GAMEOBJECT | TARGET_FLAG_CORPSE_ALLY))
     {
         if (m_targetMask & TARGET_FLAG_UNIT)
         {
@@ -242,7 +243,7 @@ void SpellCastTargets::write(ByteBuffer& data) const
             else
                 data << uint8(0);
         }
-        else if (m_targetMask & (TARGET_FLAG_OBJECT | TARGET_FLAG_OBJECT_UNK))
+        else if (m_targetMask & (TARGET_FLAG_GAMEOBJECT))
         {
             if (m_GOTarget)
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
@@ -253,7 +254,7 @@ void SpellCastTargets::write(ByteBuffer& data) const
             else
                 data << uint8(0);
         }
-        else if (m_targetMask & (TARGET_FLAG_CORPSE | TARGET_FLAG_PVP_CORPSE))
+        else if (m_targetMask & (TARGET_FLAG_CORPSE_ALLY | TARGET_FLAG_CORPSE_ENEMY))
             data << m_CorpseTargetGUID.WriteAsPacked();
         else
             data << uint8(0);
@@ -1072,7 +1073,7 @@ uint32 Spell::GetSpellBatchingEffectDelay(SpellCaster const* pTarget, SpellEffec
 
     // This tries to recreate the feeling of spell effect execution being done in batches,
     // by syncing the delay of effects to the world timer so they happen simultaneously.
-    return (sWorld.getConfig(CONFIG_UINT32_SPELL_EFFECT_DELAY) - (WorldTimer::getMSTime() % sWorld.getConfig(CONFIG_UINT32_SPELL_EFFECT_DELAY)));
+    return sWorld.GetDelayUntilNextSpellBatchingInterval();
 }
 
 void Spell::AddUnitTarget(Unit* pTarget, SpellEffectIndex effIndex)
@@ -1926,7 +1927,9 @@ void Spell::DoSpellHitOnUnit(Unit* unit, uint32 effectMask)
     // Improved Enslave Demon - talent 18825
     // Scream of Pain - talent 34469
     // Deep Freeze - talent 34508
-    if ((m_spellInfo->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_ENSLAVE_DEMON>() && pRealUnitCaster->HasAura(18825)) || ((m_spellInfo->Id == 5782 || m_spellInfo->Id == 6213 || m_spellInfo->Id == 6215 || m_spellInfo->Id == 5484 || m_spellInfo->Id == 17928) && pRealUnitCaster->HasAura(34469)) || m_spellInfo->Id == 34508)
+    // Mana Break - Felhunter spell 34541
+    // Lash of Pain - Succubus spell 34542
+    if ((m_spellInfo->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_ENSLAVE_DEMON>() && pRealUnitCaster->HasAura(18825)) || ((m_spellInfo->Id == 5782 || m_spellInfo->Id == 6213 || m_spellInfo->Id == 6215 || m_spellInfo->Id == 5484 || m_spellInfo->Id == 17928) && pRealUnitCaster->HasAura(34469)) || m_spellInfo->Id == 34508 || m_spellInfo->Id == 34541 || m_spellInfo->Id == 34542)
     {
         m_diminishGroup = DIMINISHING_NONE;
     }
@@ -3414,22 +3417,17 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
         }
         case TARGET_LOCATION_CASTER_FRONT_LEAP:
         {
-            Unit* pUnitTarget = m_targets.getUnitTarget();
-
-            if (!pUnitTarget)
-                break;
-
             float const dist = GetSpellRadius(sSpellRadiusStore.LookupEntry(m_spellInfo->EffectRadiusIndex[effIndex]));
             G3D::Vector3 dest;
             G3D::Vector3 src;
 
-            pUnitTarget->GetSafePosition(src.x, src.y, src.z);
-            pUnitTarget->GetSafePosition(dest.x, dest.y, dest.z);
+            m_caster->GetSafePosition(src.x, src.y, src.z);
+            m_caster->GetSafePosition(dest.x, dest.y, dest.z);
 
             float ground = 0.0f;
-            float waterLevel = pUnitTarget->GetTerrain()->GetWaterLevel(dest.x, dest.y, dest.z, &ground);
-            dest.x += dist * cos(pUnitTarget->GetOrientation());
-            dest.y += dist * sin(pUnitTarget->GetOrientation());
+            float waterLevel = m_caster->GetTerrain()->GetWaterLevel(dest.x, dest.y, dest.z, &ground);
+            dest.x += dist * cos(m_caster->GetOrientation());
+            dest.y += dist * sin(m_caster->GetOrientation());
 
             // Underwater blink case
             if (waterLevel != VMAP_INVALID_HEIGHT_VALUE && waterLevel > ground)
@@ -3445,11 +3443,11 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                     dest.z = waterLevel;
                 }
 
-                if (!MapManager::IsValidMapCoord(pUnitTarget->GetMapId(), dest.x, dest.y, dest.z))
+                if (!MapManager::IsValidMapCoord(m_caster->GetMapId(), dest.x, dest.y, dest.z))
                     break;
 
-                pUnitTarget->GetMap()->GetLosHitPosition(src.x, src.y, src.z, dest.x, dest.y, dest.z, -0.5f);
-                ground = pUnitTarget->GetMap()->GetHeight(dest.x, dest.y, dest.z);
+                m_caster->GetMap()->GetLosHitPosition(src.x, src.y, src.z, dest.x, dest.y, dest.z, -0.5f);
+                ground = m_caster->GetMap()->GetHeight(dest.x, dest.y, dest.z);
                 if (ground < dest.z)
                 {
                     m_targets.setDestination(dest.x, dest.y, dest.z);
@@ -3457,10 +3455,10 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                 }
             }
 
-            GameObject const* const pDoor = pUnitTarget->FindNearbyClosedDoor(dist);
+            GameObject const* const pDoor = m_caster->FindNearbyClosedDoor(dist);
             bool const directionThroughDoor = pDoor ? pDoor->HasInArc(M_PI_F, src.x, src.y) != pDoor->HasInArc(M_PI_F, dest.x, dest.y) : false;
 
-            if (pUnitTarget->GetMap()->GetWalkHitPosition(pUnitTarget->GetTransport(), src.x, src.y, src.z, dest.x, dest.y, dest.z, NAV_GROUND | NAV_WATER, 20.0f, false))
+            if (m_caster->GetMap()->GetWalkHitPosition(m_caster->GetTransport(), src.x, src.y, src.z, dest.x, dest.y, dest.z, NAV_GROUND | NAV_WATER, 20.0f, false))
             {
                 // move back so we dont clip into a door
                 if (pDoor)
@@ -3469,12 +3467,12 @@ void Spell::SetTargetMap(SpellEffectIndex effIndex, uint32 targetMode, UnitList&
                         Geometry::Move2dPointTowards(src, dest, 3.0f);
 
                     if (pDoor->HasInArc(M_PI_F, src.x, src.y) != pDoor->HasInArc(M_PI_F, dest.x, dest.y) ||
-                       !pUnitTarget->IsWithinLOS(dest.x, dest.y, dest.z, true, 0.1f))
+                       !m_caster->IsWithinLOS(dest.x, dest.y, dest.z, true, 0.1f))
                         dest = src;
                 }
 
                 // should never go backwards or sideways
-                if (!pUnitTarget->HasInArc(M_PI_F / 2.0f, dest.x, dest.y))
+                if (!m_caster->HasInArc(M_PI_F / 2.0f, dest.x, dest.y))
                     dest = src;
             }
             else
@@ -5652,14 +5650,12 @@ SpellCastResult Spell::CheckCast(bool strict)
 
         if (strict && m_casterUnit)
         {
-            if (m_casterUnit && m_casterUnit->IsInCombat() && m_spellInfo->IsNonCombatSpell())
+            if (m_casterUnit->IsInCombat() && m_spellInfo->IsNonCombatSpell())
                 return SPELL_FAILED_AFFECTING_COMBAT;
 
-            // only check at first call, Stealth auras are already removed at second call
-            // for now, ignore triggered spells
-            //if (strict)
-            //{
-            // Cannot be used in this stance/form
+            if (m_isClientStarted && !ValidateExplicitTargetMask())
+                return SPELL_FAILED_BAD_TARGETS;
+
             SpellCastResult shapeError = m_spellInfo->GetErrorAtShapeshiftedCast(m_casterUnit->GetShapeshiftForm());
             if (shapeError != SPELL_CAST_OK)
                 return shapeError;
@@ -5756,7 +5752,7 @@ SpellCastResult Spell::CheckCast(bool strict)
                     return SPELL_FAILED_NOT_READY;
                 if (Player* pCaster = m_caster->ToPlayer())
                 {
-                    std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT 1 FROM `character_warlock_demonic_circle` WHERE `guid`='%u' and `timer`>='%u' and `timer`<='%u'", pCaster->GetObjectGuid(), getTimestamp_spell()-300, getTimestamp_spell());
+                    std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT 1 FROM `character_warlock_demonic_circle` WHERE `guid`='%u' and `type`='1' and `timer`>='%u' and `timer`<='%u'", pCaster->GetObjectGuid(), getTimestamp_spell()-300, getTimestamp_spell());
                     if (result)
                         return SPELL_FAILED_NOT_READY;
                 }
@@ -5770,11 +5766,17 @@ SpellCastResult Spell::CheckCast(bool strict)
                     std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT position_x, position_y, position_z FROM `character_warlock_demonic_circle` WHERE `guid`='%u' and `map_id`='%u' and `timer`>='%u' and `timer`<='%u' and `instance_id`='%u'", pCaster->GetObjectGuid(), pCaster->GetMapId(), getTimestamp_spell()-300, getTimestamp_spell(), pCaster->GetInstanceId());
                     if (result)
                     {
-                        Field* fields = result->Fetch();
-                        float x = fields[0].GetFloat();
-                        float y = fields[1].GetFloat();
-                        float z = fields[2].GetFloat();
-                        if (pCaster->GetDistance(x,y,z) > 50.0f)
+                        float minimumDistance = 100.0f;
+                        do
+                        {
+                            Field* fields = result->Fetch();
+                            float x = fields[0].GetFloat();
+                            float y = fields[1].GetFloat();
+                            float z = fields[2].GetFloat();
+                            minimumDistance = std::min(minimumDistance, pCaster->GetDistance(x,y,z));
+                        }
+                        while (result->NextRow());
+                        if (minimumDistance > 60.0f)
                             return SPELL_FAILED_OUT_OF_RANGE;
                     }
                     else
@@ -5841,11 +5843,16 @@ SpellCastResult Spell::CheckCast(bool strict)
                 return SPELL_FAILED_BAD_TARGETS;
             if (Player* charmer = ::ToPlayer(creature->GetCharmer()))
             {
+                if (charmer->GetClass() != CLASS_WARLOCK)
+                    return SPELL_FAILED_NOT_KNOWN;
                 if (!charmer->HasItemCount(6265, 1))
                     return SPELL_FAILED_ITEM_NOT_READY;
-                std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT 1 FROM `character_warlock_demonic_circle` WHERE `guid`='%u' and `timer`>='%u' and `timer`<='%u'", charmer->GetObjectGuid(), getTimestamp_spell()-300, getTimestamp_spell());
+                std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("SELECT 1 FROM `character_warlock_demonic_circle` WHERE `guid`='%u' and `type`='2' and `timer`>='%u' and `timer`<='%u'", charmer->GetObjectGuid(), getTimestamp_spell()-300, getTimestamp_spell());
                 if (result)
+                {
+                    creature->AddCooldown(*m_spellInfo, nullptr, false, 1.5 * IN_MILLISECONDS);
                     return SPELL_FAILED_NOT_READY;
+                }
             }
         }
     }
@@ -7076,6 +7083,46 @@ SpellCastResult Spell::CheckCasterAuras() const
             return prevented_reason;
     }
     return SPELL_CAST_OK;
+}
+
+bool Spell::ValidateExplicitTargetMask() const
+{
+    Player* pPlayer = ToPlayer(m_casterUnit);
+    if (!pPlayer)
+        return true;
+
+    static constexpr uint32 verifiableTargetFlags[] = { TARGET_FLAG_UNIT , TARGET_FLAG_ITEM , TARGET_FLAG_SOURCE_LOCATION , TARGET_FLAG_DEST_LOCATION  , TARGET_FLAG_GAMEOBJECT };
+    uint32 const allowedTargetMask = m_spellInfo->AllowedTargetMask;
+    uint32 const expectedTargetMask = m_spellInfo->Targets;
+
+    if (!allowedTargetMask && m_targets.m_targetMask)
+    {
+        std::stringstream oss;
+        oss << "Casting spell " << m_spellInfo->Id << " with unexpected target mask (" << m_targets.m_targetMask << ") when none were expected";
+        pPlayer->GetSession()->ProcessAnticheatAction("PassiveAnticheat", oss.str().c_str(), CHEAT_ACTION_LOG);
+        return false;
+    }
+
+    for (uint32 flag : verifiableTargetFlags)
+    {
+        if ((m_targets.m_targetMask & flag) && !(allowedTargetMask & flag))
+        {
+            std::stringstream oss;
+            oss << "Casting spell " << m_spellInfo->Id << " with unexpected " << SpellCastTargetFlagToString(flag) << " (" << flag << ") included in the target mask (" << m_targets.m_targetMask << ")";
+            pPlayer->GetSession()->ProcessAnticheatAction("PassiveAnticheat", oss.str().c_str(), CHEAT_ACTION_LOG);
+            return false;
+        }
+
+        if (!(m_targets.m_targetMask & flag) && (expectedTargetMask & flag))
+        {
+            std::stringstream oss;
+            oss << "Casting spell " << m_spellInfo->Id << " with expected " << SpellCastTargetFlagToString(flag) << " (" << flag << ") not included in the target mask (" << m_targets.m_targetMask << ")";
+            pPlayer->GetSession()->ProcessAnticheatAction("PassiveAnticheat", oss.str().c_str(), CHEAT_ACTION_LOG);
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool Spell::CanAutoCast(Unit* target)

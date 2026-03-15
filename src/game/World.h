@@ -306,6 +306,8 @@ enum eConfigUInt32Values
     CONFIG_BOT_DURABILITY_POINTS_LOSS,
     CONFIG_BOT_LOOT_MONEY,
     CONFIG_BOT_LOOT_ROLL,
+    CONFIG_BOT_DISPEL_PET_OUT_OF_COMBAT,
+    CONFIG_BOT_DISPEL_PET_IN_COMBAT,
     CONFIG_BATTLE_BOT_QUEUED_MAX_COUNT,
     CONFIG_UINT32_BUFF_JIEFUFUTI,
     CONFIG_UINT32_PRICE_TRAVELBOOTS,
@@ -941,6 +943,8 @@ class World
         void SetWorldUpdateTimer(WorldTimers timer, uint32 current);
         time_t GetWorldUpdateTimer(WorldTimers timer);
         time_t GetWorldUpdateTimerInterval(WorldTimers timer);
+
+        uint32 GetDelayUntilNextSpellBatchingInterval();
 
         Messager<World>& GetMessager() { return m_messager; }
 

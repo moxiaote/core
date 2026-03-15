@@ -1430,9 +1430,8 @@ void Aura::TriggerSpell()
                         if (lRage > 100)                    // rage stored as rage*10
                             lRage = 100;
                         target->ModifyPower(POWER_RAGE, -lRage);
-                        float FRTriggerBasePoints = lRage * LifePerRage / 10;
-                        // Frenzied Regeneration bonus 5% Druid armor per tick
-                        FRTriggerBasePoints += target->GetArmor() * 0.05f;
+                        // Frenzied Regeneration bonus 0.5% Druid armor per rage per tick
+                        float FRTriggerBasePoints = lRage * (LifePerRage + target->GetArmor() * 0.005f) / 10;
                         target->CastCustomSpell(target, 22845, dither(FRTriggerBasePoints), {}, {}, true, nullptr, this);
                         return;
                     }
@@ -1612,7 +1611,9 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                                 }
                             }
                             Aura* aura = NULL;
+                            Aura* pet_aura = NULL;
                             SpellAuraHolder* auraH = NULL;
+                            SpellAuraHolder* pet_auraH = NULL;
                             std::unique_ptr<QueryResult> result = CharacterDatabase.PQuery("select spell_24425,spell_22888,spell_34073,spell_34072,spell_34075,spell_34074,spell_34076,spell_34276 from `character_chromie_belongings` where `guid` = %u", player->GetGUIDLow());
                             if (castspells)
                             {
@@ -1621,13 +1622,33 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                                     Field* fields = result->Fetch();
                                     for (int i = 0; i < 8; i++)
                                     {
-                                        if (fields[i].GetUInt32() != 0)
+                                        if (Pet* pet = player->GetPet())
                                         {
-                                            auraH = player->AddAura(spells[i], ADD_AURA_POSITIVE, player);
-                                            auraH->SetAuraDuration(fields[i].GetUInt32());
-                                            auraH->SetAuraMaxDuration(fields[i].GetUInt32());
-                                            auraH->RefreshHolder();
+                                            if (fields[i].GetUInt32() != 0)
+                                            {
+                                                auraH = player->AddAura(spells[i], ADD_AURA_POSITIVE, player);
+                                                auraH->SetAuraDuration(fields[i].GetUInt32());
+                                                auraH->SetAuraMaxDuration(fields[i].GetUInt32());
+                                                auraH->RefreshHolder();
+                                                if (pet->HasAura(spells[i]))
+                                                    pet->RemoveAurasDueToSpell(spells[i]);
+                                                pet_auraH = pet->AddAura(spells[i], ADD_AURA_POSITIVE, pet);
+                                                pet_auraH->SetAuraDuration(fields[i].GetUInt32());
+                                                pet_auraH->SetAuraMaxDuration(fields[i].GetUInt32());
+                                                pet_auraH->RefreshHolder();
+                                            }
                                         }
+                                        else
+                                        {
+                                            if (fields[i].GetUInt32() != 0)
+                                            {
+                                                auraH = player->AddAura(spells[i], ADD_AURA_POSITIVE, player);
+                                                auraH->SetAuraDuration(fields[i].GetUInt32());
+                                                auraH->SetAuraMaxDuration(fields[i].GetUInt32());
+                                                auraH->RefreshHolder();
+                                            }
+                                        }
+
                                     }
                                     CharacterDatabase.PExecute("delete from `character_chromie_belongings` where `guid` = '%u'", player->GetGUIDLow());
                                 }
@@ -1646,13 +1667,32 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                                 }
                                 for (int i = 0; i < 8; i++)
                                 {
-                                    if (aura = player->GetAura(spells[i], EFFECT_INDEX_0))
+                                    if (Pet* pet = player->GetPet())
                                     {
-                                        times[i] += aura->GetAuraDuration();
-                                        if (times[i] > 7200000)
-                                            times[i] = 7200000;
-                                        aura->GetHolder()->SetAuraMaxDuration(0);
-                                        aura->GetHolder()->RefreshHolder();
+                                        if (aura = player->GetAura(spells[i], EFFECT_INDEX_0))
+                                        {
+                                            times[i] += aura->GetAuraDuration();
+                                            if (times[i] > 7200000)
+                                                times[i] = 7200000;
+                                            aura->GetHolder()->SetAuraMaxDuration(0);
+                                            aura->GetHolder()->RefreshHolder();
+                                            if (pet_aura = pet->GetAura(spells[i], EFFECT_INDEX_0))
+                                            {
+                                                pet_aura->GetHolder()->SetAuraMaxDuration(0);
+                                                pet_aura->GetHolder()->RefreshHolder();
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (aura = player->GetAura(spells[i], EFFECT_INDEX_0))
+                                        {
+                                            times[i] += aura->GetAuraDuration();
+                                            if (times[i] > 7200000)
+                                                times[i] = 7200000;
+                                            aura->GetHolder()->SetAuraMaxDuration(0);
+                                            aura->GetHolder()->RefreshHolder();
+                                        }
                                     }
                                 }
                                 CharacterDatabase.PExecute("replace into `character_chromie_belongings` (`guid`, `spell_24425`, `spell_22888`, `spell_34073`, `spell_34072`, `spell_34075`, `spell_34074`, `spell_34076`, `spell_34276`) VALUES (%u, %u, %u, %u, %u, %u, %u, %u, %u)", player->GetGUIDLow(), times[0], times[1], times[2], times[3], times[4], times[5], times[6], times[7]);
@@ -3984,7 +4024,22 @@ void Aura::HandleAuraModTotalThreat(bool apply, bool Real)
     if (!caster || !caster->IsAlive())
         return;
 
-    target->GetHostileRefManager().addTempThreat(m_modifier.m_amount, apply);
+    int32 threat_value = m_modifier.m_amount;
+
+    switch (GetId())
+    {
+        // Priest - Fade
+        case 586:
+        case 9578:
+        case 9579:
+        case 9592:
+        case 10941:
+        case 10942:
+            threat_value -= (target->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + SPELL_SCHOOL_HOLY) + dither(target->GetTotalAuraModifier(SPELL_AURA_MOD_HEALING_DONE) * 0.5f));
+            break;
+    }
+
+    target->GetHostileRefManager().addTempThreat(threat_value, apply);
 }
 
 void Aura::HandleModTaunt(bool apply, bool Real)
@@ -5651,6 +5706,12 @@ void Aura::HandleShapeshiftBoosts(bool apply)
                     if (i->GetSpellProto()->SpellIconID == 240 && i->GetModifier()->m_miscvalue == 3)
                     {
                         int32 HotWMod = i->GetModifier()->m_amount;
+                        // FORM_CAT
+                        if (HotWSpellId == 24900)
+                            HotWMod = dither(HotWMod * 2.0f);
+                        // FORM_BEAR & FORM_DIREBEAR
+                        else if (HotWSpellId == 24899)
+                            HotWMod = dither(HotWMod * 1.5f);
                         target->CastCustomSpell(target, HotWSpellId, HotWMod, {}, {}, true, nullptr, this);
                         break;
                     }
@@ -6054,7 +6115,7 @@ void Aura::PeriodicTick(SpellEntry const* sProto, AuraType auraType, uint32 data
             {
                 fdamage = pCaster->SpellDamageBonusDone(target, GetSpellProto(), GetEffIndex(), m_currentBasePoints, DOT, GetStackAmount());
                 if (pCaster->HasAura(34537))
-                    fdamage += (pCaster->GetMaxHealth() + pCaster->GetMaxPower(POWER_MANA)) * 0.005f;
+                    fdamage += (pCaster->GetMaxHealth() + pCaster->GetMaxPower(POWER_MANA)) * 0.0075f;
             }
             // Curse of Agony damage-per-tick calculation
             else if (spellProto->IsFitToFamily<SPELLFAMILY_WARLOCK, CF_WARLOCK_CURSE_OF_AGONY>())
