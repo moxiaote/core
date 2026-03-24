@@ -1430,6 +1430,18 @@ void SendDefaultMenu_TeleportNPC(Player *player, Creature *_Creature, uint32 act
             player->ADD_GOSSIP_ITEM(5, "格瑞姆巴托 60级",   GOSSIP_SENDER_MAIN, 1281);
             player->ADD_GOSSIP_ITEM(5, "逐日者庭院 60级",   GOSSIP_SENDER_MAIN, 1282);
             player->ADD_GOSSIP_ITEM(5, "阿拉索废墟 60级",   GOSSIP_SENDER_MAIN, 1283);
+            player->ADD_GOSSIP_ITEM(5, "木喉要塞-费伍德 60级",   GOSSIP_SENDER_MAIN, 1284);
+            player->ADD_GOSSIP_ITEM(7, "[更多] ->",             GOSSIP_SENDER_MAIN, 5554);
+            player->ADD_GOSSIP_ITEM(7, "<- [后退]",           GOSSIP_SENDER_MAIN, 5552);
+            player->ADD_GOSSIP_ITEM(7, "<-[主菜单]",       GOSSIP_SENDER_MAIN, 100);
+
+            player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, _Creature->GetGUID());
+            break;
+        case 5554: // Instances [PAGE 5]
+            player->ADD_GOSSIP_ITEM(5, "木喉要塞-艾萨拉 60级",   GOSSIP_SENDER_MAIN, 1285);
+            player->ADD_GOSSIP_ITEM(5, "风角峡谷 60级",   GOSSIP_SENDER_MAIN, 1286);
+            player->ADD_GOSSIP_ITEM(5, "荆棘峡谷 60级",   GOSSIP_SENDER_MAIN, 1287);
+            player->ADD_GOSSIP_ITEM(5, "霜鬃谷 60级",   GOSSIP_SENDER_MAIN, 1288);
             player->ADD_GOSSIP_ITEM(7, "<- [后退]",           GOSSIP_SENDER_MAIN, 5552);
             player->ADD_GOSSIP_ITEM(7, "<-[主菜单]",       GOSSIP_SENDER_MAIN, 100);
 
@@ -2133,6 +2145,56 @@ void SendDefaultMenu_TeleportNPC(Player *player, Creature *_Creature, uint32 act
             player->ModifyMoney(-travelboots);
             player->TeleportTo(MAP_EASTERN_KINGDOMS, -1528.809082f, -1805.616821f, 71.632103f, 0.00f);
             break;
+        case 1284:// Teleport player to Timbermaw-Felwood
+            player->CLOSE_GOSSIP_MENU();
+            if(player->GetMoney() < travelboots)
+            {
+                player->GetSession()->SendNotification(costprice.c_str());
+                break;
+            }
+            player->ModifyMoney(-travelboots);
+            player->TeleportTo(MAP_KALIMDOR, 6818.529297f, -2077.303223f, 623.271118f, 0.00f);
+            break;
+        case 1285:// Teleport player to Timbermaw-Azshara
+            player->CLOSE_GOSSIP_MENU();
+            if(player->GetMoney() < travelboots)
+            {
+                player->GetSession()->SendNotification(costprice.c_str());
+                break;
+            }
+            player->ModifyMoney(-travelboots);
+            player->TeleportTo(MAP_KALIMDOR, 4218.519043f, -5212.360352f, 115.982880f, 0.00f);
+            break;
+        case 1286:// Teleport player to MooCanyon
+            player->CLOSE_GOSSIP_MENU();
+            if(player->GetMoney() < travelboots)
+            {
+                player->GetSession()->SendNotification(costprice.c_str());
+                break;
+            }
+            player->ModifyMoney(-travelboots);
+            player->TeleportTo(MAP_KALIMDOR, -4721.114258f, -2156.280029f, 84.474144f, 0.00f);
+            break;
+        case 1287:// Teleport player to netherstormbg
+            player->CLOSE_GOSSIP_MENU();
+            if(player->GetMoney() < travelboots)
+            {
+                player->GetSession()->SendNotification(costprice.c_str());
+                break;
+            }
+            player->ModifyMoney(-travelboots);
+            player->TeleportTo(MAP_KALIMDOR, 1645.961060f, 884.055908f, 132.793945f, 0.00f);
+            break;
+        case 1288:// Teleport player to FrostmaneCaverns
+            player->CLOSE_GOSSIP_MENU();
+            if(player->GetMoney() < travelboots)
+            {
+                player->GetSession()->SendNotification(costprice.c_str());
+                break;
+            }
+            player->ModifyMoney(-travelboots);
+            player->TeleportTo(MAP_EASTERN_KINGDOMS, 376.538330f, -336.624207f, 185.115158f, 0.00f);
+            break;
         case 4000:// Teleport to Zul'Gurub
             player->CLOSE_GOSSIP_MENU();
             if(player->GetMoney() < travelboots)
@@ -2161,7 +2223,7 @@ void SendDefaultMenu_TeleportNPC(Player *player, Creature *_Creature, uint32 act
                 break;
             }
             player->ModifyMoney(-travelboots);
-            player->TeleportTo(230, 1121.451172f, -454.316772f, -101.329536f, 3.5f);
+            player->TeleportTo(MAP_EASTERN_KINGDOMS, -7511.454590f, -1042.253784f, 180.912f, 0.695956f);
             break;
         case 4003:// Teleport to Blackwing Lair
             player->CLOSE_GOSSIP_MENU();
@@ -2171,7 +2233,7 @@ void SendDefaultMenu_TeleportNPC(Player *player, Creature *_Creature, uint32 act
                 break;
             }
             player->ModifyMoney(-travelboots);
-            player->TeleportTo(469, -7665.55f, -1102.49f, 400.679f, 0.0f);
+            player->TeleportTo(MAP_EASTERN_KINGDOMS, -7667.166504f, -1216.538696f, 287.789f, 5.845046f);
             break;
         case 4004:// Ruins of Ahn'Qiraj
             player->CLOSE_GOSSIP_MENU();
@@ -3254,6 +3316,231 @@ bool GossipSelect_Danath_Trollbane(Player *player, Creature *_Creature, uint32 s
     return true;
 }
 
+bool GossipHello_Portal_Sergeant_Bly(Player *player, Creature *_Creature)   
+{
+    if (player->GetMapId() == 558)
+    {
+        player->ADD_GOSSIP_ITEM(5, "离开副本",               GOSSIP_SENDER_MAIN, 1);
+    }
+    else
+    {
+        player->ADD_GOSSIP_ITEM(7, "当心，冒险者！这里的熊怪异常躁动，我们的队伍在混乱中被冲散了。等等，我们在沙漠里是不是见过一面？",               GOSSIP_SENDER_MAIN, 2);
+    }
+    player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, _Creature->GetGUID());
+    return true;
+}
+void SendDefaultMenu_Portal_Sergeant_Bly(Player *player, Creature *_Creature, uint32 action)
+{
+    switch (action)
+    {
+        case 1:
+            player->CLOSE_GOSSIP_MENU();
+            player->TeleportTo(MAP_KALIMDOR, 6818.529297f, -2077.303223f, 623.271118f, 0.0f);
+            break;
+        case 2:
+            player->ADD_GOSSIP_ITEM(5, "传送：木喉要塞",               GOSSIP_SENDER_MAIN, 3);
+            player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, _Creature->GetGUID());
+            break;
+        case 3:
+            player->CLOSE_GOSSIP_MENU();
+            if(player->GetLevel() < 60)
+            {
+                player->GetSession()->SendNotification("You must be at least level 60 to enter.");
+                break;
+            }
+            player->TeleportTo(558, -7689.899902f, -3030.914551f, 307.193481f, 0.0f);
+            break;
+    }
+}
+bool GossipSelect_Portal_Sergeant_Bly(Player *player, Creature *_Creature, uint32 sender, uint32 action)
+{
+    // Main menu
+    if (sender == GOSSIP_SENDER_MAIN)
+        SendDefaultMenu_Portal_Sergeant_Bly(player, _Creature, action);
+
+    return true;
+}
+
+bool GossipHello_Portal_Raven(Player *player, Creature *_Creature)   
+{
+    if (player->GetMapId() == 558)
+    {
+        player->ADD_GOSSIP_ITEM(5, "离开副本",               GOSSIP_SENDER_MAIN, 1);
+    }
+    else
+    {
+        player->ADD_GOSSIP_ITEM(7, "啊，好险！我没命地跑才从木喉要塞侥幸逃生。希望同伴们没事……",               GOSSIP_SENDER_MAIN, 2);
+    }
+    player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, _Creature->GetGUID());
+    return true;
+}
+void SendDefaultMenu_Portal_Raven(Player *player, Creature *_Creature, uint32 action)
+{
+    switch (action)
+    {
+        case 1:
+            player->CLOSE_GOSSIP_MENU();
+            player->TeleportTo(MAP_KALIMDOR, 4218.519043f, -5212.360352f, 115.982880f, 0.0f);
+            break;
+        case 2:
+            player->ADD_GOSSIP_ITEM(5, "传送：木喉要塞",               GOSSIP_SENDER_MAIN, 3);
+            player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, _Creature->GetGUID());
+            break;
+        case 3:
+            player->CLOSE_GOSSIP_MENU();
+            if(player->GetLevel() < 60)
+            {
+                player->GetSession()->SendNotification("You must be at least level 60 to enter.");
+                break;
+            }
+            player->TeleportTo(558, -8122.055176f, -3445.790771f, 224.913391f, 0.0f);
+            break;
+    }
+}
+bool GossipSelect_Portal_Raven(Player *player, Creature *_Creature, uint32 sender, uint32 action)
+{
+    // Main menu
+    if (sender == GOSSIP_SENDER_MAIN)
+        SendDefaultMenu_Portal_Raven(player, _Creature, action);
+
+    return true;
+}
+
+bool GossipHello_Portal_Gamon(Player *player, Creature *_Creature)   
+{
+    if (player->GetMapId() == 559)
+    {
+        player->ADD_GOSSIP_ITEM(5, "离开副本",               GOSSIP_SENDER_MAIN, 1);
+    }
+    else
+    {
+        player->ADD_GOSSIP_ITEM(7, "别怕，加摩尔会保护大家的！",               GOSSIP_SENDER_MAIN, 2);
+    }
+    player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, _Creature->GetGUID());
+    return true;
+}
+void SendDefaultMenu_Portal_Gamon(Player *player, Creature *_Creature, uint32 action)
+{
+    switch (action)
+    {
+        case 1:
+            player->CLOSE_GOSSIP_MENU();
+            player->TeleportTo(MAP_KALIMDOR, -4721.114258f, -2156.280029f, 84.474144f, 0.0f);
+            break;
+        case 2:
+            player->ADD_GOSSIP_ITEM(5, "传送：风角峡谷",               GOSSIP_SENDER_MAIN, 3);
+            player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, _Creature->GetGUID());
+            break;
+        case 3:
+            player->CLOSE_GOSSIP_MENU();
+            if(player->GetLevel() < 60)
+            {
+                player->GetSession()->SendNotification("You must be at least level 60 to enter.");
+                break;
+            }
+            player->TeleportTo(559, -8030.655762f, -3513.534912f, 157.836395f, 0.0f);
+            break;
+    }
+}
+bool GossipSelect_Portal_Gamon(Player *player, Creature *_Creature, uint32 sender, uint32 action)
+{
+    // Main menu
+    if (sender == GOSSIP_SENDER_MAIN)
+        SendDefaultMenu_Portal_Gamon(player, _Creature, action);
+
+    return true;
+}
+
+bool GossipHello_Portal_Baron_Revilgaz(Player *player, Creature *_Creature)   
+{
+    if (player->GetMapId() == 560)
+    {
+        player->ADD_GOSSIP_ITEM(5, "离开副本",               GOSSIP_SENDER_MAIN, 1);
+    }
+    else
+    {
+        player->ADD_GOSSIP_ITEM(7, "石爪山脉是卡利姆多最具备投资价值的区域。风浪越大，鱼越贵。",               GOSSIP_SENDER_MAIN, 2);
+    }
+    player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, _Creature->GetGUID());
+    return true;
+}
+void SendDefaultMenu_Portal_Baron_Revilgaz(Player *player, Creature *_Creature, uint32 action)
+{
+    switch (action)
+    {
+        case 1:
+            player->CLOSE_GOSSIP_MENU();
+            player->TeleportTo(MAP_KALIMDOR, 1645.961060f, 884.055908f, 132.793945f, 0.0f);
+            break;
+        case 2:
+            player->ADD_GOSSIP_ITEM(5, "传送：荆棘峡谷",               GOSSIP_SENDER_MAIN, 3);
+            player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, _Creature->GetGUID());
+            break;
+        case 3:
+            player->CLOSE_GOSSIP_MENU();
+            if(player->GetLevel() < 60)
+            {
+                player->GetSession()->SendNotification("You must be at least level 60 to enter.");
+                break;
+            }
+            player->TeleportTo(560, 2174.221191f, 1569.235596f, 1160.456299f, 0.0f);
+            break;
+    }
+}
+bool GossipSelect_Portal_Baron_Revilgaz(Player *player, Creature *_Creature, uint32 sender, uint32 action)
+{
+    // Main menu
+    if (sender == GOSSIP_SENDER_MAIN)
+        SendDefaultMenu_Portal_Baron_Revilgaz(player, _Creature, action);
+
+    return true;
+}
+
+bool GossipHello_Portal_Liuhaizhu(Player *player, Creature *_Creature)   
+{
+    if (player->GetMapId() == 561)
+    {
+        player->ADD_GOSSIP_ITEM(5, "离开副本",               GOSSIP_SENDER_MAIN, 1);
+    }
+    else
+    {
+        player->ADD_GOSSIP_ITEM(7, "哎呀，你大爷呀，破逼传送器给我干哪儿来了？这还是诺莫瑞根吗，啊?",               GOSSIP_SENDER_MAIN, 2);
+    }
+    player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, _Creature->GetGUID());
+    return true;
+}
+void SendDefaultMenu_Portal_Liuhaizhu(Player *player, Creature *_Creature, uint32 action)
+{
+    switch (action)
+    {
+        case 1:
+            player->CLOSE_GOSSIP_MENU();
+            player->TeleportTo(MAP_EASTERN_KINGDOMS, 376.538330f, -336.624207f, 185.115158f, 0.0f);
+            break;
+        case 2:
+            player->ADD_GOSSIP_ITEM(5, "传送：霜鬃谷",               GOSSIP_SENDER_MAIN, 3);
+            player->SEND_GOSSIP_MENU(DEFAULT_GOSSIP_MESSAGE, _Creature->GetGUID());
+            break;
+        case 3:
+            player->CLOSE_GOSSIP_MENU();
+            if(player->GetLevel() < 60)
+            {
+                player->GetSession()->SendNotification("You must be at least level 60 to enter.");
+                break;
+            }
+            player->TeleportTo(561, -7531.476562f, -3580.057861f, 199.814941f, 0.0f);
+            break;
+    }
+}
+bool GossipSelect_Portal_Liuhaizhu(Player *player, Creature *_Creature, uint32 sender, uint32 action)
+{
+    // Main menu
+    if (sender == GOSSIP_SENDER_MAIN)
+        SendDefaultMenu_Portal_Liuhaizhu(player, _Creature, action);
+
+    return true;
+}
+
 bool GossipHello_Gwyn(Player *player, Creature *_Creature)   
 {
     player->ADD_GOSSIP_ITEM(7, "火已渐熄，位不见王影，而无火的余灰们将纷沓而至。那是无名，成不了薪，且被诅咒的不死人。但正因为如此，灰烬才会如此渴求余火吧。",  GOSSIP_SENDER_MAIN, 1);
@@ -3761,30 +4048,39 @@ enum Enchants
     WEP_HEAL,
     WEP2H_INT,
     WEP2H_SPIRIT,
+    WEP2H_IMPACT,
     OFFHAND_SPIRIT,
     OFFHAND_STAM,
     OFFHAND_FROSTRES,
     OFFHAND_SHIELDSPIKE,
+    OFFHAND_BLOCK,
     CHEST_STATS,
     CHEST_HEALTH,
+    CHEST_MANA,
     CLOAK_DODGE,
     CLOAK_SUB,
     CLOAK_ARMOR,
     CLOAK_AGILITY,
     CLOAK_GREATER_RES,
+    CLOAK_STEALTH,
     BRACER_STAM,
     BRACER_STR,
     BRACER_HEAL,
     BRACER_INT,
     BRACER_MP5,
+    BRACER_SPIRIT,
     GLOVES_AGI,
     GLOVES_FIRE,
     GLOVES_FROST,
     GLOVES_SHADOW,
     GLOVES_HEALING,
+    GLOVES_THREAT,
+    GLOVES_STRENGTH,
+    GLOVES_RIDING,
     BOOTS_AGI,
     BOOTS_SPEED,
     BOOTS_STAM,
+    BOOTS_SPIRIT,
     WEP_CRUSADER_OFFHAND,
     WEP_LIFESTEAL_OFFHAND,
     WEP_FIERY_OFFHAND,
@@ -3848,6 +4144,7 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
         case EQUIPMENT_SLOT_CHEST:
             player->ADD_GOSSIP_ITEM(5, "所有属性+4",      GOSSIP_SENDER_MAIN, CHEST_STATS);
             player->ADD_GOSSIP_ITEM(5, "生命值+100",     GOSSIP_SENDER_MAIN, CHEST_HEALTH);
+            player->ADD_GOSSIP_ITEM(5, "法力值+100",     GOSSIP_SENDER_MAIN, CHEST_MANA);
             break;
         case EQUIPMENT_SLOT_BACK:
             player->ADD_GOSSIP_ITEM(5, "敏捷+3",            GOSSIP_SENDER_MAIN, CLOAK_AGILITY);
@@ -3855,6 +4152,7 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
             player->ADD_GOSSIP_ITEM(5, "躲闪+1%",              GOSSIP_SENDER_MAIN, CLOAK_DODGE);
             player->ADD_GOSSIP_ITEM(5, "仇恨-2%",           GOSSIP_SENDER_MAIN, CLOAK_SUB);
             player->ADD_GOSSIP_ITEM(5, "所有抗性+5", GOSSIP_SENDER_MAIN, CLOAK_GREATER_RES);
+            player->ADD_GOSSIP_ITEM(5, "潜行技能+5", GOSSIP_SENDER_MAIN, CLOAK_STEALTH);
         break;
         case EQUIPMENT_SLOT_WRISTS:
             player->ADD_GOSSIP_ITEM(5, "耐力+9",            GOSSIP_SENDER_MAIN, BRACER_STAM);
@@ -3862,6 +4160,7 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
             player->ADD_GOSSIP_ITEM(5, "治疗法术+24",            GOSSIP_SENDER_MAIN, BRACER_HEAL);
             player->ADD_GOSSIP_ITEM(5, "智力+7",          GOSSIP_SENDER_MAIN, BRACER_INT);
             player->ADD_GOSSIP_ITEM(5, "每5秒回复4点法力值",                GOSSIP_SENDER_MAIN, BRACER_MP5);
+            player->ADD_GOSSIP_ITEM(5, "精神+9",                GOSSIP_SENDER_MAIN, BRACER_SPIRIT);
             break;
         case EQUIPMENT_SLOT_HANDS:
             player->ADD_GOSSIP_ITEM(5, "敏捷+15",            GOSSIP_SENDER_MAIN, GLOVES_AGI);
@@ -3869,11 +4168,15 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
             player->ADD_GOSSIP_ITEM(5, "冰霜伤害+20",        GOSSIP_SENDER_MAIN, GLOVES_FROST);
             player->ADD_GOSSIP_ITEM(5, "暗影伤害+20",       GOSSIP_SENDER_MAIN, GLOVES_SHADOW);
             player->ADD_GOSSIP_ITEM(5, "治疗法术+30",            GOSSIP_SENDER_MAIN, GLOVES_HEALING);
+            player->ADD_GOSSIP_ITEM(5, "仇恨+2%",            GOSSIP_SENDER_MAIN, GLOVES_THREAT);
+            player->ADD_GOSSIP_ITEM(5, "力量+7",            GOSSIP_SENDER_MAIN, GLOVES_STRENGTH);
+            player->ADD_GOSSIP_ITEM(5, "坐骑移动速度+2%",            GOSSIP_SENDER_MAIN, GLOVES_RIDING);
             break;
         case EQUIPMENT_SLOT_FEET:
-            player->ADD_GOSSIP_ITEM(5, "耐力+7",            GOSSIP_SENDER_MAIN, BOOTS_STAM);
-            player->ADD_GOSSIP_ITEM(5, "移动速度+8%",        GOSSIP_SENDER_MAIN, BOOTS_SPEED);
             player->ADD_GOSSIP_ITEM(5, "敏捷+5",            GOSSIP_SENDER_MAIN, BOOTS_AGI);
+            player->ADD_GOSSIP_ITEM(5, "移动速度+8%",        GOSSIP_SENDER_MAIN, BOOTS_SPEED);
+            player->ADD_GOSSIP_ITEM(5, "耐力+7",            GOSSIP_SENDER_MAIN, BOOTS_STAM);
+            player->ADD_GOSSIP_ITEM(5, "精神+5",            GOSSIP_SENDER_MAIN, BOOTS_SPIRIT);
             break;
         case EQUIPMENT_SLOT_MAINHAND:
             player->ADD_GOSSIP_ITEM(5, "十字军",           GOSSIP_SENDER_MAIN, WEP_CRUSADER);
@@ -3881,6 +4184,7 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
             player->ADD_GOSSIP_ITEM(5, "双手武器 敏捷+25",         GOSSIP_SENDER_MAIN, WEP2H_AGILITY);
             player->ADD_GOSSIP_ITEM(5, "双手武器 智力+22",             GOSSIP_SENDER_MAIN, WEP2H_INT);
             player->ADD_GOSSIP_ITEM(5, "双手武器 精神+20",          GOSSIP_SENDER_MAIN, WEP2H_SPIRIT);
+            player->ADD_GOSSIP_ITEM(5, "双手武器 伤害+9",          GOSSIP_SENDER_MAIN, WEP2H_IMPACT);
             player->ADD_GOSSIP_ITEM(5, "法术伤害+30",         GOSSIP_SENDER_MAIN, WEP_SPELLPOWER);
             player->ADD_GOSSIP_ITEM(5, "治疗法术+55",            GOSSIP_SENDER_MAIN, WEP_HEAL);
             player->ADD_GOSSIP_ITEM(5, "生命偷取",          GOSSIP_SENDER_MAIN, WEP_LIFESTEAL);
@@ -3894,6 +4198,7 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
             player->ADD_GOSSIP_ITEM(5, "盾牌：耐力+7",            GOSSIP_SENDER_MAIN, OFFHAND_STAM);
             player->ADD_GOSSIP_ITEM(5, "盾牌：冰霜抗性+8",   GOSSIP_SENDER_MAIN, OFFHAND_FROSTRES);
             player->ADD_GOSSIP_ITEM(5, "盾牌：瑟银盾刺(20-30)",       GOSSIP_SENDER_MAIN, OFFHAND_SHIELDSPIKE);
+            player->ADD_GOSSIP_ITEM(5, "盾牌：格挡几率+2%",       GOSSIP_SENDER_MAIN, OFFHAND_BLOCK);
             player->ADD_GOSSIP_ITEM(5, "武器：十字军",       GOSSIP_SENDER_MAIN, WEP_CRUSADER_OFFHAND);
             player->ADD_GOSSIP_ITEM(5, "武器：生命偷取",       GOSSIP_SENDER_MAIN, WEP_LIFESTEAL_OFFHAND);
             player->ADD_GOSSIP_ITEM(5, "武器：灼热武器",       GOSSIP_SENDER_MAIN, WEP_FIERY_OFFHAND);
@@ -3917,8 +4222,9 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
             case WEP2H_AGILITY:
             case WEP2H_INT:
             case WEP2H_SPIRIT:
+            case WEP2H_IMPACT:
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND);
-                if (item && (action == WEP2H_AGILITY || action == WEP2H_SUPERIOR_IMPACT || action == WEP2H_INT || action == WEP2H_SPIRIT))
+                if (item && (action == WEP2H_AGILITY || action == WEP2H_SUPERIOR_IMPACT || action == WEP2H_INT || action == WEP2H_SPIRIT || action == WEP2H_IMPACT))
                 {
                     if (item->GetProto()->SubClass != ITEM_SUBCLASS_WEAPON_AXE2 && item->GetProto()->SubClass != ITEM_SUBCLASS_WEAPON_MACE2
                         && item->GetProto()->SubClass != ITEM_SUBCLASS_WEAPON_SWORD2 && item->GetProto()->SubClass != ITEM_SUBCLASS_WEAPON_POLEARM
@@ -3937,6 +4243,8 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
                     id = 2568;
                 else if (action == WEP2H_SPIRIT)
                     id = 2567;
+                else if (action == WEP2H_IMPACT)
+                    id = 1896;
                 break;
 
             case WEP_CRUSADER:
@@ -3980,6 +4288,7 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
             case OFFHAND_STAM:
             case OFFHAND_FROSTRES:
             case OFFHAND_SHIELDSPIKE:
+            case OFFHAND_BLOCK:
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND);
                 if (item && item->GetProto()->SubClass != ITEM_SUBCLASS_ARMOR_SHIELD)
                 {
@@ -3995,6 +4304,8 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
                     id = 929;
                 else if (action == OFFHAND_SHIELDSPIKE)
                     id = 1704;
+                else if (action == OFFHAND_BLOCK)
+                    id = 863;
                 break;
             case CHEST_STATS:
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_CHEST);
@@ -4003,6 +4314,10 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
             case CHEST_HEALTH:
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_CHEST);
                 id = 1892;
+                break;
+            case CHEST_MANA:
+                item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_CHEST);
+                id = 1893;
                 break;
             case CLOAK_DODGE:
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_BACK);
@@ -4024,6 +4339,10 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_BACK);
                 id = 1888;
                 break;
+            case CLOAK_STEALTH:
+                item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_BACK);
+                id = 910;
+                break;
             case BRACER_STAM:
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_WRISTS);
                 id = 1886;
@@ -4043,6 +4362,10 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
             case BRACER_MP5:
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_WRISTS);
                 id = 2565;
+                break;
+            case BRACER_SPIRIT:
+                item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_WRISTS);
+                id = 1884;
                 break;
             case GLOVES_AGI:
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_HANDS);
@@ -4064,6 +4387,18 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_HANDS);
                 id = 2617;
                 break;
+            case GLOVES_THREAT:
+                item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_HANDS);
+                id = 2613;
+                break;
+            case GLOVES_STRENGTH:
+                item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_HANDS);
+                id = 927;
+                break;
+            case GLOVES_RIDING:
+                item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_HANDS);
+                id = 930;
+                break;
             case BOOTS_AGI:
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_FEET);
                 id = 904;
@@ -4075,6 +4410,10 @@ bool GossipSelect_EnchantNPC(Player* player, Creature* creature, uint32 sender, 
             case BOOTS_STAM:
                 item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_FEET);
                 id = 929;
+                break;
+            case BOOTS_SPIRIT:
+                item = player->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_FEET);
+                id = 851;
                 break;
             case WEP_CRUSADER_OFFHAND:
             case WEP_LIFESTEAL_OFFHAND:
@@ -4572,6 +4911,36 @@ void AddSC_custom_creatures()
     newscript->pGossipHello = &GossipHello_Danath_Trollbane;
     newscript->pGossipSelect = &GossipSelect_Danath_Trollbane;
     newscript->RegisterSelf(false);
+
+    newscript = new Script;
+    newscript->Name = "npc_portal_sergeant_bly";
+    newscript->pGossipHello = &GossipHello_Portal_Sergeant_Bly;
+    newscript->pGossipSelect = &GossipSelect_Portal_Sergeant_Bly;
+    newscript->RegisterSelf(false);
+
+    newscript = new Script;
+    newscript->Name = "npc_portal_raven";
+    newscript->pGossipHello = &GossipHello_Portal_Raven;
+    newscript->pGossipSelect = &GossipSelect_Portal_Raven;
+    newscript->RegisterSelf(false); 
+
+    newscript = new Script;
+    newscript->Name = "npc_portal_gamon";
+    newscript->pGossipHello = &GossipHello_Portal_Gamon;
+    newscript->pGossipSelect = &GossipSelect_Portal_Gamon;
+    newscript->RegisterSelf(false); 
+
+    newscript = new Script;
+    newscript->Name = "npc_portal_baron_revilgaz";
+    newscript->pGossipHello = &GossipHello_Portal_Baron_Revilgaz;
+    newscript->pGossipSelect = &GossipSelect_Portal_Baron_Revilgaz;
+    newscript->RegisterSelf(false); 
+
+    newscript = new Script;
+    newscript->Name = "npc_portal_liuhaizhu";
+    newscript->pGossipHello = &GossipHello_Portal_Liuhaizhu;
+    newscript->pGossipSelect = &GossipSelect_Portal_Liuhaizhu;
+    newscript->RegisterSelf(false); 
 
     newscript = new Script;
     newscript->Name = "custom_enchant_npc";

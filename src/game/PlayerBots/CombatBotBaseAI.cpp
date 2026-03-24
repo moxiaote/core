@@ -3104,6 +3104,10 @@ void CombatBotBaseAI::AddHunterAmmo()
 
 void CombatBotBaseAI::EquipOrUseNewItem()
 {
+    bool canSwap = true;
+    std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery("SELECT 1 FROM `characters` WHERE `guid` = '%u' and `name` = '%s'", me->GetObjectGuid(), me->GetName()));
+    if (result)
+        canSwap = false;
     for (int i = INVENTORY_SLOT_ITEM_START; i < INVENTORY_SLOT_ITEM_END; ++i)
     {
         Item* pItem = me->GetItemByPos(INVENTORY_SLOT_BAG_0, i);
@@ -3113,6 +3117,9 @@ void CombatBotBaseAI::EquipOrUseNewItem()
             {
                 case ITEM_CLASS_CONSUMABLE:
                 {
+                    // bot can not use Pungent Blood Cocktail & Grey Rat's master key & Ice Cold Milk.
+                    if (pItem->GetProto()->ItemId == 26040 || pItem->GetProto()->ItemId == 26051 || pItem->GetProto()->ItemId == 26169)
+                        break;
                     SpellCastTargets targets;
                     targets.setUnitTarget(me);
                     me->CastItemUseSpell(pItem, targets);
@@ -3121,12 +3128,13 @@ void CombatBotBaseAI::EquipOrUseNewItem()
                 case ITEM_CLASS_WEAPON:
                 case ITEM_CLASS_ARMOR:
                 {
-                    uint32 slot = me->FindEquipSlot(pItem->GetProto(), NULL_SLOT, true);
+                    uint32 slot = me->FindEquipSlot(pItem->GetProto(), NULL_SLOT, canSwap);
                     if (slot != NULL_SLOT)
                     {
                         if (Item* pItem2 = me->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
-                            me->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
-
+                            if (pItem->GetProto()->ItemLevel >= pItem2->GetProto()->ItemLevel && pItem->GetProto()->Quality >= pItem2->GetProto()->Quality)
+                                me->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
+                            else break;
                         // Learn required proficiency
                         if (uint32 proficiencySpellId = pItem->GetProto()->GetProficiencySpell())
                             if (!me->HasSpell(proficiencySpellId))
@@ -3218,17 +3226,19 @@ SpellCastResult CombatBotBaseAI::CastWeaponBuff(SpellEntry const* pSpellEntry, E
     return spell->prepare(std::move(targets), nullptr);
 }
 
-void CombatBotBaseAI::UseTrinketEffects()
+bool CombatBotBaseAI::UseTrinketEffects(bool onlyToBreakCC)
 {
     if (Item* pItem = me->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_TRINKET1))
-        if (UseItemEffect(pItem))
-            return;
+        if (UseItemEffect(pItem, onlyToBreakCC))
+            return true;
     if (Item* pItem = me->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_TRINKET2))
-        if (UseItemEffect(pItem))
-            return;
+        if (UseItemEffect(pItem, onlyToBreakCC))
+            return true;
+
+    return false;
 }
 
-bool CombatBotBaseAI::UseItemEffect(Item* pItem)
+bool CombatBotBaseAI::UseItemEffect(Item* pItem, bool onlyToBreakCC)
 {
     ItemPrototype const* pProto = pItem->GetProto();
     for (auto const& itr : pProto->Spells)
@@ -3239,6 +3249,9 @@ bool CombatBotBaseAI::UseItemEffect(Item* pItem)
             {
                 if (me->IsSpellReady(*pSpellEntry, pProto))
                 {
+                    if (onlyToBreakCC && !pSpellEntry->HasAttribute(SPELL_ATTR_EX_IMMUNITY_PURGES_EFFECT))
+                        continue;
+
                     if (pSpellEntry->IsPositiveSpell())
                         return me->CastSpell(me, pSpellEntry, false, pItem) == SPELL_CAST_OK;
                     else if (me->GetVictim())
@@ -3248,6 +3261,116 @@ bool CombatBotBaseAI::UseItemEffect(Item* pItem)
         }
     }
     return false;
+}
+
+void CombatBotBaseAI::BreakCrowdControlEffects()
+{
+    if (UseTrinketEffects(true))
+        return;
+
+    switch (me->GetClass())
+    {
+        case CLASS_PALADIN:
+        {
+            // AURA_WARSONG_FLAG
+            if (m_spells.paladin.pQuZhu &&
+                !me->HasAura(23333) &&
+                CanTryToCastSpell(me, m_spells.paladin.pQuZhu))
+            {
+                if (DoCastSpell(me, m_spells.paladin.pQuZhu) == SPELL_CAST_OK)
+                    return;
+            }
+            if (m_spells.paladin.pDivineShield &&
+                CanTryToCastSpell(me, m_spells.paladin.pDivineShield))
+            {
+                if (DoCastSpell(me, m_spells.paladin.pDivineShield) == SPELL_CAST_OK)
+                {
+                    if (m_role != ROLE_HEALER)
+                    {
+                        me->m_Events.AddLambdaEventAtOffset([player = me, spellId = m_spells.paladin.pDivineShield->Id]()
+                        {
+                            if (player->GetHealthPercent() > 75.0f && player->GetAttackers().size() < 3)
+                                player->RemoveAurasDueToSpellByCancel(spellId);
+                        }, 1 * IN_MILLISECONDS);
+                    }
+                    return;
+                }
+            }
+            break;
+        }
+        case CLASS_MAGE:
+        {
+            if (me->HasUnitState(UNIT_STATE_STUNNED) && m_spells.mage.pBlink &&
+                CanTryToCastSpell(me, m_spells.mage.pBlink))
+            {
+                if (DoCastSpell(me, m_spells.mage.pBlink) == SPELL_CAST_OK)
+                    return;
+            }
+            if (m_spells.mage.pIceBlock &&
+                CanTryToCastSpell(me, m_spells.mage.pIceBlock))
+            {
+                if (DoCastSpell(me, m_spells.mage.pIceBlock) == SPELL_CAST_OK)
+                {
+                    me->m_Events.AddLambdaEventAtOffset([player = me, spellId = m_spells.mage.pIceBlock->Id]()
+                    {
+                        if (player->GetHealthPercent() > 75.0f && player->GetAttackers().size() < 3)
+                            player->RemoveAurasDueToSpellByCancel(spellId);
+                    }, 1 * IN_MILLISECONDS);
+                    return;
+                }
+            }
+            break;
+        }
+        case CLASS_DRUID:
+        {
+            bool polymorphed = false;
+            auto const& auraList = me->GetAurasByType(SPELL_AURA_MOD_CONFUSE);
+            for (auto const& pAura : auraList)
+            {
+                if (pAura->GetSpellProto()->Mechanic == MECHANIC_POLYMORPH)
+                {
+                    polymorphed = true;
+                    break;
+                }
+            }
+
+            if (polymorphed)
+            {
+                SpellEntry const* pShapeshift = nullptr;
+
+                if (m_role == ROLE_TANK && m_spells.druid.pBearForm && CanTryToCastSpell(me, m_spells.druid.pBearForm))
+                    pShapeshift = m_spells.druid.pBearForm;
+                else if (m_role == ROLE_MELEE_DPS && m_spells.druid.pCatForm && CanTryToCastSpell(me, m_spells.druid.pCatForm))
+                    pShapeshift = m_spells.druid.pCatForm;
+                else if (m_role == ROLE_RANGE_DPS && m_spells.druid.pMoonkinForm && CanTryToCastSpell(me, m_spells.druid.pMoonkinForm))
+                    pShapeshift = m_spells.druid.pMoonkinForm;
+                else
+                {
+                    for (auto const& pSpell : m_spells.raw.spells)
+                    {
+                        if (pSpell && pSpell->HasAura(SPELL_AURA_MOD_SHAPESHIFT) && CanTryToCastSpell(me, pSpell))
+                        {
+                            pShapeshift = pSpell;
+                            break;
+                        }
+                    }
+                }
+
+                if (pShapeshift && DoCastSpell(me, pShapeshift) == SPELL_CAST_OK)
+                {
+                    if (m_role == ROLE_HEALER)
+                    {
+                        me->m_Events.AddLambdaEventAtOffset([player = me, spellId = pShapeshift->Id]()
+                        {
+                            player->RemoveAurasDueToSpellByCancel(spellId);
+                        }, 1 * IN_MILLISECONDS);
+                    }
+                    return;
+                }
+            }
+            break;
+        }
+    }
 }
 
 bool CombatBotBaseAI::IsWearingShield(Player* pPlayer) const
@@ -3403,12 +3526,8 @@ void CombatBotBaseAI::OnPacketReceived(WorldPacket const* packet)
             }
             else if (status == TRADE_STATUS_TRADE_COMPLETE)
             {
-                std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery("SELECT 1 FROM `characters` WHERE `guid` = '%u' and `name` = '%s'", me->GetObjectGuid(), me->GetName()));
-                if (!result)
-                {
-                    EquipOrUseNewItem();
-                    UpdateVisualHonorRankBasedOnItems();
-                }
+                EquipOrUseNewItem();
+                UpdateVisualHonorRankBasedOnItems();
             }
             break;
         }

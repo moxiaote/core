@@ -1033,14 +1033,8 @@ void Player::OnMirrorTimerExpirationPulse(MirrorTimer::Type timer)
             EnvironmentalDamage(DAMAGE_DROWNING, ((GetMaxHealth() / 5) + urand(0, (GetLevel() - 1))));
             break;
         case MirrorTimer::ENVIRONMENTAL:
-            if (IsInMagma() && GetMapId() != 557)
+            if (IsInMagma() && GetMapId() != 557 && GetMapId() != 558 && GetMapId() != 559)
                 EnvironmentalDamage(DAMAGE_LAVA, urand(sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MIN), sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MAX)));
-            // NAXX Slime 34130
-            //if (IsInSlime() && m_zoneUpdateId == 3456)
-            //    CastSpell(this, 34130, true);
-            // Exclude Slime in Undercity
-            if (IsInSlime() && m_zoneUpdateId != 1497)
-                EnvironmentalDamage(DAMAGE_SLIME, urand(sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MIN), sWorld.getConfig(CONFIG_UINT32_ENVIRONMENTAL_DAMAGE_MAX)));
             break;
         case MirrorTimer::FEIGNDEATH:
             // Vanilla: kill player on feigning death for too long
@@ -10803,6 +10797,20 @@ void Player::SetVisibleItemSlot(uint8 slot, Item const* pItem)
         SetUInt32Value(PLAYER_VISIBLE_ITEM_1_PROPERTIES + 0 + (slot * MAX_VISIBLE_ITEM_OFFSET), 0);
         SetUInt32Value(PLAYER_VISIBLE_ITEM_1_PROPERTIES + 1 + (slot * MAX_VISIBLE_ITEM_OFFSET), 0);
     }
+}
+
+float Player::GetItemLevel() const
+{
+    float itemLevel = 0.0f;
+    // Equipment
+    for (int i = EQUIPMENT_SLOT_START; i < EQUIPMENT_SLOT_END; ++i)
+    {
+        if (i == EQUIPMENT_SLOT_BODY || i == EQUIPMENT_SLOT_OFFHAND || i == EQUIPMENT_SLOT_TABARD)
+            continue;
+        if (Item* pItem = GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+            itemLevel += pItem->GetProto()->ItemLevel;
+    }
+    return itemLevel / 16.0f;
 }
 
 void Player::ReplaceCharacterTransmog(uint64 guid, uint64 entry, uint64 character)

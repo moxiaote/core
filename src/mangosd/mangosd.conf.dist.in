@@ -1006,13 +1006,13 @@ PerformanceLog.SlowPacketBroadcast      = 0
 #                  0 (instant underwater breathing damage start)
 #
 #    MirrorTimer.Environmental.Max
-#        Generic environmental (lava/slime/etc) damage delay max timer value (in secs)
+#        Generic environmental damage delay max timer value (in secs); only lava is affected by this
 #        Default:  1
 #                  0 (instant in liquid damage start)
 #
 #    EnvironmentalDamage.Min
 #    EnvironmentalDamage.Max
-#        Generic environmental (lava/slime/etc) damage taken on tick
+#        Generic environmental damage taken on tick; only lava is affected by this
 #        Default:  605-610
 #
 #    MaxPrimaryTradeSkill
@@ -1170,6 +1170,20 @@ ShowProgressBars = 0
 WaitAtStartupError = 5 # consider fixing your actual problem before changing this value!
 Motd = "Welcome to World of Warcraft!"
 Instance.IgnoreAQGate = 1
+Raid.MC = 1
+Raid.OL = 1
+Raid.BWL = 1
+Raid.ZG = 1
+Raid.RAQ = 1
+Raid.TAQ = 1
+Raid.NAXX = 1
+ItemLevel.MC = 54.0
+ItemLevel.OL = 54.0
+ItemLevel.BWL = 62.0
+ItemLevel.ZG = 50.0
+ItemLevel.RAQ = 58.0
+ItemLevel.TAQ = 66.0
+ItemLevel.NAXX = 70.0
 
 ###################################################################################################################
 # PLAYER INTERACTION

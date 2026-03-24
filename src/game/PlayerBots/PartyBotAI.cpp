@@ -699,7 +699,10 @@ void PartyBotAI::UpdateAI(uint32 const diff)
         me->RemoveSpellsCausingAura(SPELL_AURA_FEIGN_DEATH);
 
     if (me->HasUnitState(UNIT_STATE_CAN_NOT_REACT_OR_LOST_CONTROL))
+    {
+        BreakCrowdControlEffects();
         return;
+    }
 
     if (me->IsDead())
     {
@@ -847,7 +850,7 @@ void PartyBotAI::UpdateAI(uint32 const diff)
                     bool oldStatePower = me->HasCheatOption(PLAYER_CHEAT_NO_POWER);
                     me->SetCheatOption(PLAYER_CHEAT_NO_CAST_TIME, true);
                     me->SetCheatOption(PLAYER_CHEAT_NO_POWER, true);
-                    me->CastSpell(me, urand(34385, 34462), true);
+                    me->CastSpell(me, (urand(1, 5) > 4 ? urand(34545, 34563) : urand(34385, 34462)), true);
                     me->SetCheatOption(PLAYER_CHEAT_NO_CAST_TIME, oldStateCastTime);
                     me->SetCheatOption(PLAYER_CHEAT_NO_POWER, oldStatePower);
                 }
@@ -1378,7 +1381,6 @@ void PartyBotAI::UpdateInCombatAI_Paladin()
     if (Unit* pFriend = me->FindLowestHpFriendlyUnit(30.0f, 70, true, me))
     {
         if (m_spells.paladin.pQuZhu &&
-            !pFriend->HasAura(34047) &&
             CanTryToCastSpell(pFriend, m_spells.paladin.pQuZhu))
         {
             if (DoCastSpell(pFriend, m_spells.paladin.pQuZhu) == SPELL_CAST_OK)
@@ -1571,15 +1573,6 @@ void PartyBotAI::UpdateInCombatAI_Paladin()
                 me->GetMotionMaster()->MoveChase(pVictim);
             }
         }
-    }
-
-    if (m_spells.paladin.pQuZhu &&
-        (me->HasUnitState(UNIT_STATE_CAN_NOT_REACT_OR_LOST_CONTROL) || me->HasAuraType(SPELL_AURA_MOD_SILENCE)) &&
-        !me->HasAura(34047) &&
-        CanTryToCastSpell(me, m_spells.paladin.pQuZhu))
-    {
-        if (DoCastSpell(me, m_spells.paladin.pQuZhu) == SPELL_CAST_OK)
-            return;
     }
 
     if (m_spells.paladin.pBlessingOfFreedom &&
