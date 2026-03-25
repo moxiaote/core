@@ -784,6 +784,59 @@ void PartyBotAI::UpdateAI(uint32 const diff)
         // C'Thun room do not teleport
         if (!me->IsWithinDistInMap(pLeader, 100.0f) && !IsInDuel() && !((me->GetZoneId() == 3428) && (pLeader->GetZoneId() == 3428) && (me->GetPositionZ() - pLeader->GetPositionZ() > 150)))
         {
+            if (pLeader->GetMap()->IsRaid())
+            {
+                std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery("SELECT 1 FROM `character_instance` a WHERE `guid` = '%u' AND `instance` <> '%u' AND `permanent` = 1 AND EXISTS ( SELECT 1 FROM `characters` WHERE `guid` = a.`guid` AND `name` = '%s' ) AND EXISTS ( SELECT 1 FROM `instance` WHERE `id` = a.`instance` AND `map` = '%u' AND DATA <> '' )", me->GetObjectGuid(), pLeader->GetInstanceId(), me->GetName(), pLeader->GetMapId()));
+                if (result)
+                {
+                    if (me->GetMotionMaster()->GetCurrentMovementGeneratorType())
+                    {
+                        me->GetMotionMaster()->Clear(false, true);
+                        me->GetMotionMaster()->MoveIdle();
+                    }
+                    return;
+                }
+                std::unique_ptr<QueryResult> result1(CharacterDatabase.PQuery("SELECT 1 FROM `characters` WHERE `guid` = '%u' and `name` = '%s'", me->GetObjectGuid(), me->GetName()));
+                if (result1)
+                {
+                    float raid_item_level = 0.0f;
+                    switch (pLeader->GetMapId())
+                    {
+                        case MAP_MOLTEN_CORE:
+                            raid_item_level = sWorld.getConfig(CONFIG_FLOAT_ITEM_LEVEL_MC);
+                            break;
+                        case MAP_ONYXIAS_LAIR:
+                            raid_item_level = sWorld.getConfig(CONFIG_FLOAT_ITEM_LEVEL_OL);
+                            break;
+                        case MAP_BLACKWING_LAIR:
+                            raid_item_level = sWorld.getConfig(CONFIG_FLOAT_ITEM_LEVEL_BWL);
+                            break;
+                        case MAP_ZUL_GURUB:
+                            raid_item_level = sWorld.getConfig(CONFIG_FLOAT_ITEM_LEVEL_ZG);
+                            break;
+                        case MAP_AHN_QIRAJ_RUINS:
+                            raid_item_level = sWorld.getConfig(CONFIG_FLOAT_ITEM_LEVEL_RAQ);
+                            break;
+                        case MAP_AHN_QIRAJ_TEMPLE:
+                            raid_item_level = sWorld.getConfig(CONFIG_FLOAT_ITEM_LEVEL_TAQ);
+                            break;
+                        case MAP_NAXXRAMAS:
+                            raid_item_level = sWorld.getConfig(CONFIG_FLOAT_ITEM_LEVEL_NAXX);
+                            break;
+                        default:
+                            break;
+                    }
+                    if (me->GetItemLevel() < raid_item_level)
+                    {
+                        if (me->GetMotionMaster()->GetCurrentMovementGeneratorType())
+                        {
+                            me->GetMotionMaster()->Clear(false, true);
+                            me->GetMotionMaster()->MoveIdle();
+                        }
+                        return;
+                    }
+                }
+            }
             if (!me->IsStopped())
                 me->StopMoving();
             me->GetMotionMaster()->Clear(false, true);
