@@ -35,6 +35,30 @@ enum PartyBotSpells
     PB_SPELL_AUTO_SHOT = 75,
     PB_SPELL_SHOOT_WAND = 5019,
     PB_SPELL_HONORLESS_TARGET = 2479,
+
+    BB_SPELL_MOUNT_40_HUMAN = 470,
+    BB_SPELL_MOUNT_40_NELF = 10787,
+    BB_SPELL_MOUNT_40_DWARF = 6896,
+    BB_SPELL_MOUNT_40_GNOME = 17456,
+    BB_SPELL_MOUNT_40_TROLL = 10795,
+    BB_SPELL_MOUNT_40_ORC = 581,
+    BB_SPELL_MOUNT_40_TAUREN = 18363,
+    BB_SPELL_MOUNT_40_UNDEAD = 8980,
+
+    BB_SPELL_MOUNT_60_HUMAN = 22717,
+    BB_SPELL_MOUNT_60_NELF = 22723,
+    BB_SPELL_MOUNT_60_DWARF = 22720,
+    BB_SPELL_MOUNT_60_GNOME = 22719,
+    BB_SPELL_MOUNT_60_TROLL = 22721,
+    BB_SPELL_MOUNT_60_ORC = 22724,
+    BB_SPELL_MOUNT_60_TAUREN = 22718,
+    BB_SPELL_MOUNT_60_UNDEAD = 22722,
+
+    BB_SPELL_MOUNT_40_PALADIN = 13819,
+    BB_SPELL_MOUNT_60_PALADIN = 23214,
+
+    BB_SPELL_MOUNT_40_WARLOCK = 5784,
+    BB_SPELL_MOUNT_60_WARLOCK = 23161,
 };
 
 #define PB_UPDATE_INTERVAL 1000
@@ -98,7 +122,7 @@ void PartyBotAI::CloneFromPlayer(Player const* pPlayer)
         {
             me->SatisfyItemRequirements(pItem->GetProto());
             me->StoreNewItemInBestSlots(pItem->GetEntry(), 1, pItem->GetEnchantmentId(EnchantmentSlot(0)));
-        }   
+        }
     }
 }
 
@@ -137,7 +161,7 @@ bool PartyBotAI::IsValidDistancingTarget(Unit* pTarget, Unit* pEnemy)
             pTarget->GetDistance(pEnemy) >= 15.0f)
             return true;
     }
-     
+
     return false;
 }
 
@@ -178,6 +202,75 @@ bool PartyBotAI::RunAwayFromTarget(Unit* pEnemy)
     }
 
     return me->GetMotionMaster()->MoveDistance(pEnemy, 15.0f);
+}
+
+uint32 PartyBotAI::GetMountSpellId() const
+{
+    if (me->GetLevel() >= 60)
+    {
+        if (me->GetMapId() == MAP_AHN_QIRAJ_TEMPLE)
+            return (urand(1, 4) > 3 ? 25953 : urand(26054, 26056));
+        else
+        {
+            if (me->GetClass() == CLASS_PALADIN)
+                return BB_SPELL_MOUNT_60_PALADIN;
+            if (me->GetClass() == CLASS_WARLOCK)
+                return BB_SPELL_MOUNT_60_WARLOCK;
+
+            switch (me->GetRace())
+            {
+                case RACE_HUMAN:
+                    return BB_SPELL_MOUNT_60_HUMAN;
+                case RACE_NIGHTELF:
+                    return BB_SPELL_MOUNT_60_NELF;
+                case RACE_DWARF:
+                    return BB_SPELL_MOUNT_60_DWARF;
+                case RACE_GNOME:
+                    return BB_SPELL_MOUNT_60_GNOME;
+                case RACE_TROLL:
+                    return BB_SPELL_MOUNT_60_TROLL;
+                case RACE_ORC:
+                    return BB_SPELL_MOUNT_60_ORC;
+                case RACE_TAUREN:
+                    return BB_SPELL_MOUNT_60_TAUREN;
+                case RACE_UNDEAD:
+                    return BB_SPELL_MOUNT_60_UNDEAD;
+            }
+        }
+    }
+    else if (me->GetLevel() >= 40)
+    {
+        if (me->GetClass() == CLASS_PALADIN)
+            return BB_SPELL_MOUNT_40_PALADIN;
+        if (me->GetClass() == CLASS_WARLOCK)
+            return BB_SPELL_MOUNT_40_WARLOCK;
+
+        switch (me->GetRace())
+        {
+            case RACE_HUMAN:
+                return BB_SPELL_MOUNT_40_HUMAN;
+            case RACE_NIGHTELF:
+                return BB_SPELL_MOUNT_40_NELF;
+            case RACE_DWARF:
+                return BB_SPELL_MOUNT_40_DWARF;
+            case RACE_GNOME:
+                return BB_SPELL_MOUNT_40_GNOME;
+            case RACE_TROLL:
+                return BB_SPELL_MOUNT_40_TROLL;
+            case RACE_ORC:
+                return BB_SPELL_MOUNT_40_ORC;
+            case RACE_TAUREN:
+                return BB_SPELL_MOUNT_40_TAUREN;
+            case RACE_UNDEAD:
+                return BB_SPELL_MOUNT_40_UNDEAD;
+        }
+    }
+    else if (me->GetLevel() >= 10)
+    {
+        return 34535;
+    }
+
+    return 0;
 }
 
 bool PartyBotAI::DrinkAndEat()
@@ -299,7 +392,7 @@ bool PartyBotAI::CanTryToCastSpell(Unit const* pTarget, SpellEntry const* pSpell
                 {
                     float const myThreat = pEnemy->GetThreatManager().getThreat(me);
                     float const victimThreat = pEnemy->GetThreatManager().getThreat(pEnemy->GetVictim());
-                    
+
                     if (victimThreat < (myThreat + me->GetMaxHealth()))
                         return false;
                 }
@@ -543,7 +636,7 @@ void PartyBotAI::AddToPlayerGroup()
             me->RemoveFromGroup();
 
         group->AddMember(me->GetObjectGuid(), me->GetName());
-    } 
+    }
 }
 
 void PartyBotAI::OnPacketReceived(WorldPacket const* packet)
@@ -561,8 +654,8 @@ void PartyBotAI::OnPacketReceived(WorldPacket const* packet)
         }
         case SMSG_DUEL_REQUESTED:
         {
-            std::unique_ptr<WorldPacket> data = std::make_unique<WorldPacket>(CMSG_DUEL_ACCEPTED, 8);
-            *data << me->GetObjectGuid();
+            auto data = std::make_unique<WorldPackets::Duel::DuelAccepted>();
+            data->playerGuid = me->GetObjectGuid();
             me->GetSession()->QueuePacket(std::move(data));
             return;
         }
@@ -678,7 +771,7 @@ void PartyBotAI::UpdateAI(uint32 const diff)
             m_receivedBgInvite = false;
             return;
         }
-        
+
         // Remain idle until we can join battleground.
         return;
     }
@@ -723,7 +816,7 @@ void PartyBotAI::UpdateAI(uint32 const diff)
                 me->CastSpell(me, PB_SPELL_HONORLESS_TARGET, true);
             }
         }
-        
+
         return;
     }
 
@@ -897,7 +990,7 @@ void PartyBotAI::UpdateAI(uint32 const diff)
                     me->HasAuraType(SPELL_AURA_MOD_SHAPESHIFT))
                     me->RemoveSpellsCausingAura(SPELL_AURA_MOD_SHAPESHIFT);
 
-                if (me->GetLevel() >= 60 && me->GetMapId() != MAP_AHN_QIRAJ_TEMPLE && urand(0, 99) < 20)
+                if (me->GetLevel() >= 60 && me->GetMapId() != MAP_AHN_QIRAJ_TEMPLE && urand(0, 99) < 15)
                 {
                     bool oldStateCastTime = me->HasCheatOption(PLAYER_CHEAT_NO_CAST_TIME);
                     bool oldStatePower = me->HasCheatOption(PLAYER_CHEAT_NO_POWER);
@@ -909,14 +1002,14 @@ void PartyBotAI::UpdateAI(uint32 const diff)
                 }
                 else
                 {
-                    auto auraList = pLeader->GetAurasByType(SPELL_AURA_MOUNTED);
-                    if (!auraList.empty())
+                    uint32 mountSpellId = GetMountSpellId();
+                    if (mountSpellId)
                     {
                         bool oldStateCastTime = me->HasCheatOption(PLAYER_CHEAT_NO_CAST_TIME);
                         bool oldStatePower = me->HasCheatOption(PLAYER_CHEAT_NO_POWER);
                         me->SetCheatOption(PLAYER_CHEAT_NO_CAST_TIME, true);
                         me->SetCheatOption(PLAYER_CHEAT_NO_POWER, true);
-                        me->CastSpell(me, (*auraList.begin())->GetId(), true);
+                        me->CastSpell(me, mountSpellId, true);
                         me->SetCheatOption(PLAYER_CHEAT_NO_CAST_TIME, oldStateCastTime);
                         me->SetCheatOption(PLAYER_CHEAT_NO_POWER, oldStatePower);
                     }
@@ -1384,7 +1477,7 @@ void PartyBotAI::UpdateOutOfCombatAI_Paladin()
                         me->ClearTarget();
                         return;
                     }
-                }  
+                }
             }
         }
     }
@@ -1635,7 +1728,7 @@ void PartyBotAI::UpdateInCombatAI_Paladin()
         if (DoCastSpell(me, m_spells.paladin.pBlessingOfFreedom) == SPELL_CAST_OK)
             return;
     }
-    
+
     if (GetRole() != ROLE_HEALER &&
         me->GetHealthPercent() < 30.0f)
         HealInjuredTarget(me);
@@ -2128,30 +2221,16 @@ void PartyBotAI::UpdateOutOfCombatAI_Mage()
 {
     if (sWorld.getConfig(CONFIG_MAGE_BOT_ARCANE_INTELLECT) == 1)
     {
-        if (m_spells.mage.pArcaneBrilliance)
+        SpellEntry const* pBuffSpell = nullptr;
+        if (Player* pTarget = SelectBuffTarget(m_spells.mage.pArcaneIntellect, m_spells.mage.pArcaneBrilliance, pBuffSpell))
         {
-            if (CanTryToCastSpell(me, m_spells.mage.pArcaneBrilliance))
+            if (CanTryToCastSpell(pTarget, pBuffSpell))
             {
-                if (DoCastSpell(me, m_spells.mage.pArcaneBrilliance) == SPELL_CAST_OK)
+                if (DoCastSpell(pTarget, pBuffSpell) == SPELL_CAST_OK)
                 {
                     m_isBuffing = true;
                     me->ClearTarget();
                     return;
-                }
-            }
-        }
-        else if (m_spells.mage.pArcaneIntellect)
-        {
-            if (Player* pTarget = SelectBuffTarget(m_spells.mage.pArcaneIntellect))
-            {
-                if (CanTryToCastSpell(pTarget, m_spells.mage.pArcaneIntellect))
-                {
-                    if (DoCastSpell(pTarget, m_spells.mage.pArcaneIntellect) == SPELL_CAST_OK)
-                    {
-                        m_isBuffing = true;
-                        me->ClearTarget();
-                        return;
-                    }
                 }
             }
         }
@@ -2393,7 +2472,7 @@ void PartyBotAI::UpdateInCombatAI_Mage()
         {
             if (DoCastSpell(me, m_spells.mage.pPresenceOfMind) == SPELL_CAST_OK)
                 return;
-        } 
+        }
 
         bool victimCanReflectSpell = false;
         Unit::AuraList const& reflectSpells = pVictim->GetAurasByType(SPELL_AURA_REFLECT_SPELLS);
@@ -2480,33 +2559,16 @@ void PartyBotAI::UpdateOutOfCombatAI_Priest()
 {
     if (sWorld.getConfig(CONFIG_PRIEST_BOT_POWER_WORD_FORTITUDE) == 1)
     {
-        if (m_spells.priest.pPrayerofFortitude)
+        SpellEntry const* pBuffSpell = nullptr;
+        if (Player* pTarget = SelectBuffTarget(m_spells.priest.pPowerWordFortitude, m_spells.priest.pPrayerofFortitude, pBuffSpell))
         {
-            if (Player* pTarget = SelectBuffTarget(m_spells.priest.pPrayerofFortitude))
+            if (CanTryToCastSpell(pTarget, pBuffSpell))
             {
-                if (CanTryToCastSpell(pTarget, m_spells.priest.pPrayerofFortitude))
+                if (DoCastSpell(pTarget, pBuffSpell) == SPELL_CAST_OK)
                 {
-                    if (DoCastSpell(pTarget, m_spells.priest.pPrayerofFortitude) == SPELL_CAST_OK)
-                    {
-                        m_isBuffing = true;
-                        me->ClearTarget();
-                        return;
-                    }
-                }
-            }
-        }
-        else if (m_spells.priest.pPowerWordFortitude)
-        {
-            if (Player* pTarget = SelectBuffTarget(m_spells.priest.pPowerWordFortitude))
-            {
-                if (CanTryToCastSpell(pTarget, m_spells.priest.pPowerWordFortitude))
-                {
-                    if (DoCastSpell(pTarget, m_spells.priest.pPowerWordFortitude) == SPELL_CAST_OK)
-                    {
-                        m_isBuffing = true;
-                        me->ClearTarget();
-                        return;
-                    }
+                    m_isBuffing = true;
+                    me->ClearTarget();
+                    return;
                 }
             }
         }
@@ -2514,33 +2576,16 @@ void PartyBotAI::UpdateOutOfCombatAI_Priest()
 
     if (sWorld.getConfig(CONFIG_PRIEST_BOT_DIVINE_SPIRIT) == 1)
     {
-        if (m_spells.priest.pPrayerofSpirit)
+        SpellEntry const* pBuffSpell = nullptr;
+        if (Player* pTarget = SelectBuffTarget(m_spells.priest.pDivineSpirit, m_spells.priest.pPrayerofSpirit, pBuffSpell))
         {
-            if (Player* pTarget = SelectBuffTarget(m_spells.priest.pPrayerofSpirit))
+            if (CanTryToCastSpell(pTarget, pBuffSpell))
             {
-                if (CanTryToCastSpell(pTarget, m_spells.priest.pPrayerofSpirit))
+                if (DoCastSpell(pTarget, pBuffSpell) == SPELL_CAST_OK)
                 {
-                    if (DoCastSpell(pTarget, m_spells.priest.pPrayerofSpirit) == SPELL_CAST_OK)
-                    {
-                        m_isBuffing = true;
-                        me->ClearTarget();
-                        return;
-                    }
-                }
-            }
-        }
-        else if (m_spells.priest.pDivineSpirit)
-        {
-            if (Player* pTarget = SelectBuffTarget(m_spells.priest.pDivineSpirit))
-            {
-                if (CanTryToCastSpell(me, m_spells.priest.pDivineSpirit))
-                {
-                    if (DoCastSpell(me, m_spells.priest.pDivineSpirit) == SPELL_CAST_OK)
-                    {
-                        m_isBuffing = true;
-                        me->ClearTarget();
-                        return;
-                    }
+                    m_isBuffing = true;
+                    me->ClearTarget();
+                    return;
                 }
             }
         }
@@ -2548,33 +2593,16 @@ void PartyBotAI::UpdateOutOfCombatAI_Priest()
 
     if (sWorld.getConfig(CONFIG_PRIEST_BOT_SHADOW_PROTECTION) == 1)
     {
-        if (m_spells.priest.pPrayerofShadowProtection)
+        SpellEntry const* pBuffSpell = nullptr;
+        if (Player* pTarget = SelectBuffTarget(m_spells.priest.pShadowProtection, m_spells.priest.pPrayerofShadowProtection, pBuffSpell))
         {
-            if (Player* pTarget = SelectBuffTarget(m_spells.priest.pPrayerofShadowProtection))
+            if (CanTryToCastSpell(pTarget, pBuffSpell))
             {
-                if (CanTryToCastSpell(pTarget, m_spells.priest.pPrayerofShadowProtection))
+                if (DoCastSpell(pTarget, pBuffSpell) == SPELL_CAST_OK)
                 {
-                    if (DoCastSpell(pTarget, m_spells.priest.pPrayerofShadowProtection) == SPELL_CAST_OK)
-                    {
-                        m_isBuffing = true;
-                        me->ClearTarget();
-                        return;
-                    }
-                }
-            }
-        }
-        else if (m_spells.priest.pShadowProtection)
-        {
-            if (Player* pTarget = SelectBuffTarget(m_spells.priest.pShadowProtection))
-            {
-                if (CanTryToCastSpell(pTarget, m_spells.priest.pShadowProtection))
-                {
-                    if (DoCastSpell(pTarget, m_spells.priest.pShadowProtection) == SPELL_CAST_OK)
-                    {
-                        m_isBuffing = true;
-                        me->ClearTarget();
-                        return;
-                    }
+                    m_isBuffing = true;
+                    me->ClearTarget();
+                    return;
                 }
             }
         }
@@ -3509,7 +3537,7 @@ void PartyBotAI::UpdateOutOfCombatAI_Warrior()
              if (CanTryToCastSpell(me, m_spells.warrior.pBattleShout))
                  DoCastSpell(me, m_spells.warrior.pBattleShout);
              else if (m_spells.warrior.pBloodrage &&
-                 (me->GetPower(POWER_RAGE) < 10) &&
+                 (me->GetPower(POWER_RAGE) < 100) &&
                  CanTryToCastSpell(me, m_spells.warrior.pBloodrage))
              {
                  DoCastSpell(me, m_spells.warrior.pBloodrage);
@@ -3763,9 +3791,9 @@ void PartyBotAI::UpdateInCombatAI_Warrior()
         }
 
         if (m_spells.warrior.pWhirlwind &&
-            CanTryToCastSpell(pVictim, m_spells.warrior.pWhirlwind))
+            CanTryToCastSpell(me, m_spells.warrior.pWhirlwind))
         {
-            if (DoCastSpell(pVictim, m_spells.warrior.pWhirlwind) == SPELL_CAST_OK)
+            if (DoCastSpell(me, m_spells.warrior.pWhirlwind) == SPELL_CAST_OK)
                 return;
         }
 
@@ -3779,9 +3807,9 @@ void PartyBotAI::UpdateInCombatAI_Warrior()
 
         if (m_spells.warrior.pDemoralizingShout &&
             m_role == ROLE_TANK &&
-            CanTryToCastSpell(pVictim, m_spells.warrior.pDemoralizingShout))
+            CanTryToCastSpell(me, m_spells.warrior.pDemoralizingShout))
         {
-            if (DoCastSpell(pVictim, m_spells.warrior.pDemoralizingShout) == SPELL_CAST_OK)
+            if (DoCastSpell(me, m_spells.warrior.pDemoralizingShout) == SPELL_CAST_OK)
                 return;
         }
 
@@ -3791,7 +3819,7 @@ void PartyBotAI::UpdateInCombatAI_Warrior()
             me->GetMotionMaster()->MoveChase(pVictim);
         }
 
-        if (me->GetPower(POWER_RAGE) > 30)
+        if (me->GetPower(POWER_RAGE) > 300)
         {
             if (m_spells.warrior.pCleave && me->GetEnemyCountInRadiusAround(pVictim, 8.0f) > 1)
             {
@@ -4009,7 +4037,7 @@ void PartyBotAI::UpdateInCombatAI_Rogue()
                 if (m_spells.rogue.pRupture)
                     vSpells.push_back(m_spells.rogue.pRupture);
             }
-            
+
             if (!vSpells.empty())
             {
                 SpellEntry const* pComboSpell = SelectRandomContainerElement(vSpells);
@@ -4226,33 +4254,16 @@ void PartyBotAI::UpdateOutOfCombatAI_Druid()
 
     if (sWorld.getConfig(CONFIG_DRUID_BOT_MARK_OF_THE_WILD) == 1)
     {
-        if (m_spells.druid.pGiftoftheWild)
+        SpellEntry const* pBuffSpell = nullptr;
+        if (Player* pTarget = SelectBuffTarget(m_spells.druid.pMarkoftheWild, m_spells.druid.pGiftoftheWild, pBuffSpell))
         {
-            if (Player* pTarget = SelectBuffTarget(m_spells.druid.pGiftoftheWild))
+            if (CanTryToCastSpell(pTarget, pBuffSpell))
             {
-                if (CanTryToCastSpell(pTarget, m_spells.druid.pGiftoftheWild))
+                if (DoCastSpell(pTarget, pBuffSpell) == SPELL_CAST_OK)
                 {
-                    if (DoCastSpell(pTarget, m_spells.druid.pGiftoftheWild) == SPELL_CAST_OK)
-                    {
-                        m_isBuffing = true;
-                        me->ClearTarget();
-                        return;
-                    }
-                }
-            }
-        }
-        else if (m_spells.druid.pMarkoftheWild)
-        {
-            if (Player* pTarget = SelectBuffTarget(m_spells.druid.pMarkoftheWild))
-            {
-                if (CanTryToCastSpell(pTarget, m_spells.druid.pMarkoftheWild))
-                {
-                    if (DoCastSpell(pTarget, m_spells.druid.pMarkoftheWild) == SPELL_CAST_OK)
-                    {
-                        m_isBuffing = true;
-                        me->ClearTarget();
-                        return;
-                    }
+                    m_isBuffing = true;
+                    me->ClearTarget();
+                    return;
                 }
             }
         }
@@ -4368,7 +4379,7 @@ void PartyBotAI::UpdateInCombatAI_Druid()
         if (DoCastSpell(me, m_spells.druid.pBarkskin) == SPELL_CAST_OK)
             return;
     }
-    
+
     if (form == FORM_NONE)
     {
         if (m_spells.druid.pHibernate &&
@@ -4427,7 +4438,7 @@ void PartyBotAI::UpdateInCombatAI_Druid()
     Unit* pVictim = me->GetVictim();
     if (!pVictim)
         return;
-    
+
     if (form != FORM_NONE &&
         me->HasUnitState(UNIT_STATE_ROOT) &&
         me->HasAuraType(SPELL_AURA_MOD_SHAPESHIFT) &&
@@ -4436,7 +4447,7 @@ void PartyBotAI::UpdateInCombatAI_Druid()
 
     if (GetRole() == ROLE_HEALER)
         return;
-    
+
     switch (form)
     {
         case FORM_CAT:
@@ -4539,7 +4550,7 @@ void PartyBotAI::UpdateInCombatAI_Druid()
                 if (DoCastSpell(pVictim, m_spells.druid.pClaw) == SPELL_CAST_OK)
                     return;
             }
-                
+
             break;
         }
         case FORM_BEAR:
@@ -4583,7 +4594,7 @@ void PartyBotAI::UpdateInCombatAI_Druid()
                     return;
             }
 
-            if ((me->GetPower(POWER_RAGE) > 80) ||
+            if ((me->GetPower(POWER_RAGE) > 800) ||
                 (GetAttackersInRangeCount(10.0f) > 1))
             {
                 if (m_spells.druid.pDemoralizingRoar &&

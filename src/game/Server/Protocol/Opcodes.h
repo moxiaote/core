@@ -33,25 +33,8 @@
 //       struct OpcodeHandler in this header and Opcode.cpp and get totally wrong data from
 //       table opcodeTable in source when Opcode.h included but WorldSession.h not included
 #include "WorldSession.h"
-
-// List of Opcodes
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_11_2
-#include "Opcodes_1_12_1.h"
-#elif SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_10_2
-#include "Opcodes_1_11_2.h"
-#elif SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_9_4
-#include "Opcodes_1_10_2.h"
-#elif SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
-#include "Opcodes_1_9_4.h"
-#elif SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_7_1
-#include "Opcodes_1_8_4.h"
-#elif SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_6_1
-#include "Opcodes_1_7_1.h"
-#elif SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_5_1
-#include "Opcodes_1_6_1.h"
-#else
-#include "Opcodes_1_5_1.h"
-#endif
+#include "Opcodes_active.h"
+#include "nonstd/expected.hpp"
 
 inline bool IsAnyMoveAckOpcode(uint16 opcode)
 {
@@ -149,66 +132,35 @@ enum SessionStatus
 
 class WorldPacket;
 
-struct OpcodeHandler
+struct OpcodeHandlerPacketImplDetails
 {
-    char const* name;
     SessionStatus status;
     PacketProcessing packetProcessing;
-    void (WorldSession::*handler)(WorldPacket& recvPacket);
+    std::unique_ptr<ClientPacket> (*readPacket)(WorldPacket& recvPacket);
+    void (WorldSession::*handler)(ClientPacket const& recvPacket);
 };
 
-typedef std::map< uint16, OpcodeHandler> OpcodeMap;
-
-class Opcodes
+enum class UnhandleReason
 {
-    public:
-        Opcodes();
-        ~Opcodes();
-    public:
-        void BuildOpcodeList();
-        void StoreOpcode(uint16 Opcode,char const* name, SessionStatus status, PacketProcessing process, void (WorldSession::*handler)(WorldPacket& recvPacket))
-        {
-            OpcodeHandler& ref = mOpcodeMap[Opcode];
-            ref.name = name;
-            ref.status = status;
-            ref.packetProcessing = process;
-            ref.handler = handler;
-        }
-
-        // Lookup opcode
-        inline OpcodeHandler const* LookupOpcode(uint16 id) const
-        {
-            OpcodeMap::const_iterator itr = mOpcodeMap.find(id);
-            if (itr != mOpcodeMap.end())
-                return &itr->second;
-            return nullptr;
-        }
-
-        // compatible with other mangos branches access
-
-        inline OpcodeHandler const& operator[] (uint16 id) const
-        {
-            OpcodeMap::const_iterator itr = mOpcodeMap.find(id);
-            if (itr != mOpcodeMap.end())
-                return itr->second;
-            return emptyHandler;
-        }
-
-        static OpcodeHandler const emptyHandler;
-
-        OpcodeMap mOpcodeMap;
-
+    Invalid,
+    Unhandled,
+    AlreadyHandledElsewhere, // should already be handled before the packet reaches this opcode map
+    SendByServer,
 };
 
-#define opcodeTable MaNGOS::Singleton<Opcodes>::Instance()
-
-// Lookup opcode name for human understandable logging
-inline char const* LookupOpcodeName(uint16 id)
+struct OpcodeHandler
 {
-    if (OpcodeHandler const* op = opcodeTable.LookupOpcode(id))
-        return op->name;
-    return "Received unknown opcode, it's more than max!";
-}
+    char const* name = "<unknown opcode>";
+    nonstd::expected<OpcodeHandlerPacketImplDetails, UnhandleReason> impl = nonstd::unexpected<UnhandleReason>(UnhandleReason::Unhandled);
+};
+
+// returns true if it's completely out of range
+inline bool IsDefinitelyBogusOpcode(uint16 opcode) { return opcode >= NUM_MSG_TYPES; }
+
+// Will work for any opcode, might return `<unknown opcode>` and without impl
+OpcodeHandler const& LookupOpcodeHandler(uint16 id);
+// Will work for any opcode, might return `<unknown opcode>`
+char const* LookupOpcodeName(uint16 id);
 
 #endif
 // @}
