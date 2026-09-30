@@ -28,10 +28,10 @@
 #include "SpellModifier.h"
 #include "SpellMgr.h"
 #include "ScriptMgr.h"
-#include "Util.h"
 #include "World.h"
 #include "Map.h"
 #include "GridMap.h"
+#include "Utilities/Random.h"
 #include "ScriptMgr.h"
 
 pAuraProcHandler AuraProcHandler[TOTAL_AURAS] =
@@ -517,7 +517,7 @@ SpellAuraProcResult Unit::TriggerProccedSpell(Unit* target, int32* basepoints, S
     if (!target || (target != this && !target->IsAlive()))
         return SPELL_AURA_PROC_FAILED;
 
-    if (!IsSpellReady(*spellInfo))
+    if (!IsSpellReady(spellInfo))
         return SPELL_AURA_PROC_FAILED;
 
     if (basepoints && (basepoints[EFFECT_INDEX_0] || basepoints[EFFECT_INDEX_1] || basepoints[EFFECT_INDEX_2]))
@@ -530,7 +530,7 @@ SpellAuraProcResult Unit::TriggerProccedSpell(Unit* target, int32* basepoints, S
         CastSpell(target, spellInfo, true, castItem, triggeredByAura, originalCaster, nullptr, triggeredByParent);
 
     if (cooldown)
-        AddCooldown(*spellInfo, nullptr, false, cooldown);
+        AddCooldown(spellInfo, nullptr, false, cooldown);
 
     return SPELL_AURA_PROC_OK;
 }
@@ -583,7 +583,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                         return SPELL_AURA_PROC_FAILED;
 
                     // return damage % to attacker but < 50% own total health
-                    basepoints[0] = dither(triggerAmount * int32(originalAmount) / 100);
+                    basepoints[0] = rand_dither(triggerAmount * int32(originalAmount) / 100);
                     if (basepoints[0] > (int32)GetMaxHealth() / 2)
                         basepoints[0] = (int32)GetMaxHealth() / 2;
 
@@ -635,7 +635,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     {
                         if (pVictim->GetHealthPercent() <= 20.0f && target->GetHealthPercent() <= 20.0f)  // If Both Target A and target B is less or equal than 20% do full damage
                         {
-                            basepoints[0] = ditheru(amount * 100 / CalcArmorReducedDamage(pVictim, 100));
+                            basepoints[0] = rand_ditheru(amount * 100 / CalcArmorReducedDamage(pVictim, 100));
                             triggered_spell_id = 12723; // Note this SS id deals 1 damage by itself (Cannot crit)
                         }
                         else if (pVictim->GetHealthPercent() <= 20.0f)    // If only Target A is less or equal than 20% and target B is over 20% do Basic attack damage
@@ -644,14 +644,14 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                         }
                         else // Full damage on anything else (Shouldn't really ever be used) since execute can only be used less or equal than 20% anyway.
                         {
-                            basepoints[0] = ditheru(amount * 100 / CalcArmorReducedDamage(pVictim, 100));
+                            basepoints[0] = rand_ditheru(amount * 100 / CalcArmorReducedDamage(pVictim, 100));
                             triggered_spell_id = 12723; // Note this SS id deals 1 damage by itself (Cannot crit)
                         }
                     }
                     else // Full damage on anything else
 #endif
                     {
-                        basepoints[0] = ditheru(amount * 100 / CalcArmorReducedDamage(pVictim, 100));
+                        basepoints[0] = rand_ditheru(amount * 100 / CalcArmorReducedDamage(pVictim, 100));
                         triggered_spell_id = 12723; // Note this SS id deals 1 damage by itself (Cannot crit)
                     }
 
@@ -807,7 +807,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     if (leech_life_total <= 0)
                         return SPELL_AURA_PROC_FAILED;
                     // heal amount
-                    basepoints[0] = dither(leech_life_total * amount / 100);
+                    basepoints[0] = rand_dither(leech_life_total * amount / 100);
                     target = this;
                     triggered_spell_id = 34480;
                     break;                               // no hidden cooldown
@@ -829,7 +829,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     {
                         distance_coefficient = 1.0f;
                     }
-                    basepoints[0] = (dither(this->GetMaxHealth() * 0.35f) >= dither((pVictim->GetHealth() * 0.04f + this->GetTotalAttackPowerValue(RANGED_ATTACK)) * distance_coefficient)) ? dither((pVictim->GetHealth() * 0.04f + this->GetTotalAttackPowerValue(RANGED_ATTACK)) * distance_coefficient) : dither(this->GetMaxHealth() * 0.35f);
+                    basepoints[0] = (rand_dither(this->GetMaxHealth() * 0.35f) >= rand_dither((pVictim->GetHealth() * 0.04f + this->GetTotalAttackPowerValue(RANGED_ATTACK)) * distance_coefficient)) ? rand_dither((pVictim->GetHealth() * 0.04f + this->GetTotalAttackPowerValue(RANGED_ATTACK)) * distance_coefficient) : rand_dither(this->GetMaxHealth() * 0.35f);
                     target = pVictim;
                     if (this->HasAura(34302) || this->HasAura(34303))
                     {
@@ -902,7 +902,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     static_cast<Player*>(this)->RemoveSomeCooldown(cdCheck);
                     if (!pVictim)
                         return SPELL_AURA_PROC_FAILED;
-                    basepoints[0] = (dither(this->GetMaxHealth() * 0.5f) >= dither(pVictim->GetHealth() * 0.12f)) ? dither(pVictim->GetHealth() * 0.12f) : dither(this->GetMaxHealth() * 0.5f);
+                    basepoints[0] = (rand_dither(this->GetMaxHealth() * 0.5f) >= rand_dither(pVictim->GetHealth() * 0.12f)) ? rand_dither(pVictim->GetHealth() * 0.12f) : rand_dither(this->GetMaxHealth() * 0.5f);
                     target = pVictim;
                     triggered_spell_id = 34207;
                     break;                               // no hidden cooldown
@@ -912,7 +912,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 {
                     // echo slam target count
                     uint8 EchoSlamTargetCount = this->GetEnemyCountInRadiusAround(this, 10.0f);
-                    basepoints[0] = dither(triggerAmount * EchoSlamTargetCount + 30.0f);
+                    basepoints[0] = rand_dither(triggerAmount * EchoSlamTargetCount + 30.0f);
                     target = this;
                     triggered_spell_id = 34196;
                     break;                               // no hidden cooldown
@@ -921,7 +921,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34193:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34194;
                     break;                               // no hidden cooldown
@@ -930,7 +930,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34124:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34125;
                     break;                               // no hidden cooldown
@@ -957,7 +957,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34346:
                 {
                     // mana amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34347;
                     break;                               // no hidden cooldown
@@ -966,7 +966,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34297:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34299;
                     break;                               // no hidden cooldown
@@ -975,7 +975,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34298:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34299;
                     break;                               // no hidden cooldown
@@ -986,13 +986,13 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     // heal amount
                     if (this->HasAura(23836))
                     {
-                        basepoints[0] = dither(45 * amount / 100);
-                        basepoints[1] = dither(30 * amount / 100);
+                        basepoints[0] = rand_dither(45 * amount / 100);
+                        basepoints[1] = rand_dither(30 * amount / 100);
                     }
                     else
                     {
-                        basepoints[0] = dither(30 * amount / 100);
-                        basepoints[1] = dither(20 * amount / 100);
+                        basepoints[0] = rand_dither(30 * amount / 100);
+                        basepoints[1] = rand_dither(20 * amount / 100);
                     }
                     target = this;
                     triggered_spell_id = 34530;
@@ -1010,17 +1010,17 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     {
                         if (urand(1, 100) < 33)
                         {
-                            this->CastCustomSpell(pVictim, 34541, {}, dither(300 * amount / 100), {}, true, castItem, triggeredByAura);
+                            this->CastCustomSpell(pVictim, 34541, {}, rand_dither(300 * amount / 100), {}, true, castItem, triggeredByAura);
                             return SPELL_AURA_PROC_OK;
                         }
                         else
                         {
-                            basepoints[0] = dither(300 * amount / 100);
+                            basepoints[0] = rand_dither(300 * amount / 100);
                         }
                     }
                     else
                     {
-                        basepoints[0] = dither(200 * amount / 100);
+                        basepoints[0] = rand_dither(200 * amount / 100);
                     }
                     target = pVictim;
                     triggered_spell_id = 34532;
@@ -1030,7 +1030,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34144:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34150;
                     break;                               // no hidden cooldown
@@ -1039,7 +1039,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34145:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34150;
                     break;                               // no hidden cooldown
@@ -1048,7 +1048,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34146:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34150;
                     break;                               // no hidden cooldown
@@ -1057,7 +1057,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34147:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34150;
                     break;                               // no hidden cooldown
@@ -1066,7 +1066,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34148:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34150;
                     break;                               // no hidden cooldown
@@ -1075,7 +1075,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34149:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34150;
                     break;                               // no hidden cooldown
@@ -1084,7 +1084,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34271:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34272;
                     break;                               // no hidden cooldown
@@ -1094,7 +1094,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 {
                     if (this->HasUnitState(UNIT_STATE_STUNNED | UNIT_STATE_ROOT))
                     {
-                        basepoints[0] = dither(this->GetMaxHealth() * 0.05f);
+                        basepoints[0] = rand_dither(this->GetMaxHealth() * 0.05f);
                         basepoints[1] = 100;
                         target = this;
                         triggered_spell_id = 34328;
@@ -1113,9 +1113,24 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     if (!this->HasAura(6788))
                         return SPELL_AURA_PROC_FAILED;
                     // reflect damage amount
-                    basepoints[0] = dither(amount * 0.25f + this->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + SPELL_SCHOOL_SHADOW) * 0.25f);
+                    basepoints[0] = rand_dither(amount * 0.25f + this->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + SPELL_SCHOOL_SHADOW) * 0.25f);
                     target = pVictim;
                     triggered_spell_id = 34514;
+                    break;                               // no hidden cooldown
+                }
+                // Hunter - Moment of Courage
+                case 34665:
+                {
+                    if (this->GetTypeId() != TYPEID_PLAYER)
+                        return SPELL_AURA_PROC_FAILED;
+                    // health amount
+                    basepoints[0] = rand_dither(this->GetTotalAttackPowerValue(BASE_ATTACK) * 0.5f);
+                    // mana amount
+                    basepoints[1] = rand_dither(this->GetTotalAttackPowerValue(RANGED_ATTACK) * 0.33f);
+                    // physical damage reduce amount
+                    basepoints[2] = -rand_dither(this->GetStat(STAT_AGILITY) * (0.75f - this->GetHealthPercent() * 0.005f));
+                    target = this;
+                    triggered_spell_id = 34666;
                     break;                               // no hidden cooldown
                 }
                 // Obsidian Armor (Justice Bearer`s Pauldrons shoulder)
@@ -1165,7 +1180,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     return SPELL_AURA_PROC_FAILED;
 
                 // mana reward
-                basepoints[0] = dither(triggerAmount * GetMaxPower(POWER_MANA) / 100);
+                basepoints[0] = rand_dither(triggerAmount * GetMaxPower(POWER_MANA) / 100);
                 target = this;
                 triggered_spell_id = 29442;
                 break;
@@ -1178,7 +1193,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
 
                 // mana cost save
                 int32 cost = procSpell->manaCost + procSpell->ManaCostPercentage * GetCreateMana() / 100;
-                basepoints[0] = dither(cost * triggerAmount / 100);
+                basepoints[0] = rand_dither(cost * triggerAmount / 100);
                 if (basepoints[0] <= 0)
                     return SPELL_AURA_PROC_FAILED;
 
@@ -1227,7 +1242,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
 
                     if (pVictim->IsImmuneToSpell(sSpellMgr.GetSpellEntry(34508), false) || pVictim->HasAura(34508))
                     {
-                        basepoints[0] = dither(this->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + SPELL_SCHOOL_FROST) * 2.0f);
+                        basepoints[0] = rand_dither(this->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS + SPELL_SCHOOL_FROST) * 2.0f);
                         target = pVictim;
                         triggered_spell_id = 34509;
                     }
@@ -1251,7 +1266,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34310:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34312;
                     break;                               // no hidden cooldown
@@ -1260,7 +1275,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                 case 34311:
                 {
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
                     target = this;
                     triggered_spell_id = 34312;
                     break;                               // no hidden cooldown
@@ -1283,7 +1298,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                         return SPELL_AURA_PROC_FAILED;
 
                     // heal amount
-                    basepoints[0] = dither(triggerAmount * amount / 100);
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
 
                     // don't heal for 0
                     if (basepoints[0] < 1)
@@ -1293,7 +1308,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     if (pVictim->HasAura(34341))
                     {
                         // mana amount
-                        basepoints[1] = dither(amount / 20);
+                        basepoints[1] = rand_dither(amount / 20);
                         if (basepoints[1] < 1)
                             basepoints[1] = 1;
                         pVictim->CastCustomSpell(pVictim, 34342, basepoints[0], basepoints[1], {}, true, castItem, triggeredByAura);
@@ -1386,7 +1401,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     if (!bleed_count)
                         return SPELL_AURA_PROC_FAILED;
                     // heal amount
-                    basepoints[0] = dither(25 * bleed_count * amount / 100);
+                    basepoints[0] = rand_dither(25 * bleed_count * amount / 100);
                     target = this;
                     triggered_spell_id = 34543;
                     break;
@@ -1427,7 +1442,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                         bleed_count *= 2;
                     if (this->GetHealthPercent() < 50.0f)
                         bleed_count *= 2;
-                    basepoints[0] = dither(25 * bleed_count * amount / 100);
+                    basepoints[0] = rand_dither(25 * bleed_count * amount / 100);
                     target = this;
                     triggered_spell_id = 34543;
                     break;
@@ -1463,7 +1478,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                         return SPELL_AURA_PROC_FAILED;
 
                      // Reconstitute damage before armor reduction
-                    basepoints[0] = ditheru(amount * 100 / CalcArmorReducedDamage(pVictim, 100));
+                    basepoints[0] = rand_ditheru(amount * 100 / CalcArmorReducedDamage(pVictim, 100));
 
                     triggered_spell_id = 22482;
                     break;
@@ -1472,7 +1487,25 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
             break;
         }
         case SPELLFAMILY_HUNTER:
+        {
+            switch (dummySpell->Id)
+            {
+                // Ranged Weapon Specialization
+                case 19507:
+                case 19508:
+                case 19509:
+                case 19510:
+                case 19511:
+                {
+                    // mana amount
+                    basepoints[0] = rand_dither(triggerAmount * amount / 100);
+                    target = this;
+                    triggered_spell_id = 34570;
+                    break;                               // no hidden cooldown
+                }
+            }
             break;
+        }
         case SPELLFAMILY_PALADIN:
         {
             // Seal of Righteousness - melee proc dummy
@@ -1549,7 +1582,7 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 amount, uint
                     damagePoint = pVictim->SpellDamageBonusTaken(this, dummySpell, EFFECT_INDEX_0, damagePoint, SPELL_DIRECT_DAMAGE);
                 }
 
-                CastCustomSpell(pVictim, spellId, dither(damagePoint), {}, {}, true, nullptr, triggeredByAura);
+                CastCustomSpell(pVictim, spellId, rand_dither(damagePoint), {}, {}, true, nullptr, triggeredByAura);
                 // Seal of Righteousness can proc weapon enchants. mechanic removed in 2.1.0
                 ((Player*)this)->CastItemCombatSpell(pVictim, BASE_ATTACK);
                 return SPELL_AURA_PROC_OK;                                // no hidden cooldown
@@ -1827,7 +1860,7 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(Unit* pVictim, uint32 a
                         sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Unit::HandleProcTriggerSpell: Spell %u not handled in BR", auraSpellInfo->Id);
                         return SPELL_AURA_PROC_FAILED;
                 }
-                basepoints[0] = dither(amount * triggerAmount / 100 / 3);
+                basepoints[0] = rand_dither(amount * triggerAmount / 100 / 3);
                 target = this;
             }
             break;
@@ -1921,7 +1954,7 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(Unit* pVictim, uint32 a
                         damagePoint = pVictim->SpellDamageBonusTaken(this, auraSpellInfo, triggeredByAura->GetEffIndex(), damagePoint, SPELL_DIRECT_DAMAGE);
                     }
 
-                    CastCustomSpell(pVictim, spellId, dither(damagePoint), {}, {}, true, nullptr, triggeredByAura);
+                    CastCustomSpell(pVictim, spellId, rand_dither(damagePoint), {}, {}, true, nullptr, triggeredByAura);
                     // Seal of Righteousness can proc weapon enchants. mechanic removed in 2.1.0
                     static_cast<Player*>(this)->CastItemCombatSpell(pVictim, BASE_ATTACK);
                     return SPELL_AURA_PROC_OK;                                // no hidden cooldown
@@ -2138,7 +2171,7 @@ SpellAuraProcResult Unit::HandleProcTriggerSpellAuraProc(Unit* pVictim, uint32 a
 SpellAuraProcResult Unit::HandleProcTriggerDamageAuraProc(Unit* pVictim, uint32 amount, uint32 originalAmount, Aura* triggeredByAura, SpellEntry const* procSpell, uint32 procFlags, uint32 procEx, uint32 cooldown)
 {
     SpellEntry const* spellInfo = triggeredByAura->GetSpellProto();
-    DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "ProcDamageAndSpell: doing %u damage from spell id %u (triggered by auratype %u of spell %u)",
+    DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "ProcDamageAndSpell: doing %.2f damage from spell id %u (triggered by auratype %u of spell %u)",
                      triggeredByAura->GetModifier()->m_amount, spellInfo->Id, triggeredByAura->GetModifier()->m_auraname, triggeredByAura->GetId());
 
     if (!pVictim || !pVictim->IsAlive())
@@ -2175,7 +2208,7 @@ SpellAuraProcResult Unit::HandleProcTriggerDamageAuraProc(Unit* pVictim, uint32 
     }
 #endif
 
-    SpellNonMeleeDamage damageInfo(this, pVictim, spellInfo->Id, SpellSchools(spellInfo->School));
+    SpellNonMeleeDamage damageInfo(this, pVictim, spellInfo->Id, static_cast<SpellSchools>(spellInfo->School));
     float fdamage = CalculateSpellEffectValue(pVictim, spellInfo, triggeredByAura->GetEffIndex());
 
     // Paladin - Holy Shield : damage bonus 7.5% max health and 5% armor
@@ -2192,7 +2225,7 @@ SpellAuraProcResult Unit::HandleProcTriggerDamageAuraProc(Unit* pVictim, uint32 
 
     fdamage = SpellDamageBonusDone(pVictim, spellInfo, triggeredByAura->GetEffIndex(), fdamage, SPELL_DIRECT_DAMAGE);
     fdamage = pVictim->SpellDamageBonusTaken(this, spellInfo, triggeredByAura->GetEffIndex(), fdamage, SPELL_DIRECT_DAMAGE);
-    damageInfo.damage = ditheru(fdamage);
+    damageInfo.damage = rand_ditheru(fdamage);
     damageInfo.target->CalculateAbsorbResistBlock(this, &damageInfo, spellInfo);
     DealDamageMods(damageInfo.target, damageInfo.damage, &damageInfo.absorb);
     SendSpellNonMeleeDamageLog(&damageInfo);
@@ -2350,6 +2383,7 @@ SpellAuraProcResult Unit::HandleAddTargetTriggerAuraProc(Unit* pVictim, uint32 /
             case 17768: // Casque tete de loup
             case 24392: // Gelee soudaine
             case 14179: // Frappes implacables
+            case 34670: // Restless Blades
                 bTarget = false;
                 break;
         }

@@ -44,18 +44,14 @@
 
 void WorldSession::SendMailResult(uint32 mailId, MailResponseType mailAction, MailResponseResult mailError, uint32 equipError, uint32 item_guid, uint32 item_count)
 {
-    WorldPacket data(SMSG_SEND_MAIL_RESULT, (4 + 4 + 4 + (mailError == MAIL_ERR_EQUIP_ERROR ? 4 : (mailAction == MAIL_ITEM_TAKEN ? 4 + 4 : 0))));
-    data << (uint32)mailId;
-    data << (uint32)mailAction;
-    data << (uint32)mailError;
-    if (mailError == MAIL_ERR_EQUIP_ERROR)
-        data << (uint32)equipError;
-    else if (mailAction == MAIL_ITEM_TAKEN)
-    {
-        data << (uint32)item_guid;                         // item guid low?
-        data << (uint32)item_count;                        // item count?
-    }
-    SendPacket(&data);
+    auto packet = std::make_unique<WorldPackets::Mail::SendMailResult>();
+    packet->mailId = mailId;
+    packet->mailAction = mailAction;
+    packet->mailError = mailError;
+    packet->equipError = equipError;
+    packet->itemGuidLow = item_guid;
+    packet->itemCount = item_count;
+    SendPacket(std::move(packet));
 }
 
 void WorldSession::SendNewMail()
@@ -641,7 +637,8 @@ void WorldSession::HandleMailTakeItem(WorldPackets::Mail::MailTakeItem const& pa
     Item *it = pl->GetMItem(itemGuid);
 
     ItemPosCountVec dest;
-    uint8 msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, dest, it, false);
+    uint8 bagSlot = 0;
+    uint8 msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, dest, it, bagSlot, false);
     if (msg == EQUIP_ERR_OK)
     {
         m->RemoveItem(itemGuid);
@@ -884,10 +881,10 @@ void WorldSession::HandleItemTextQuery(WorldPackets::Misc::ItemTextQuery const& 
 
     // TODO: some check needed, if player has item with guid mailId, or has mail with id mailId
 
-    WorldPacket data(SMSG_ITEM_TEXT_QUERY_RESPONSE, (4 + 10)); // guess size
-    data << packet.itemTextId;
-    data << sObjectMgr.GetItemText(packet.itemTextId);
-    SendPacket(&data);
+    auto textPacket = std::make_unique<WorldPackets::Mail::ItemTextQueryResponse>();
+    textPacket->itemTextId = packet.itemTextId;
+    textPacket->text = sObjectMgr.GetItemText(packet.itemTextId);
+    SendPacket(std::move(textPacket));
 }
 
 /**
@@ -926,7 +923,8 @@ void WorldSession::HandleMailCreateTextItem(WorldPackets::Mail::MailCreateTextIt
     bodyItem->SetGuidValue(ITEM_FIELD_CREATOR, ObjectGuid(HIGHGUID_PLAYER, m->sender));
 
     ItemPosCountVec dest;
-    uint8 msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, dest, bodyItem, false);
+    uint8 bagSlot = 0;
+    uint8 msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, dest, bodyItem, bagSlot, false);
     if (msg == EQUIP_ERR_OK)
     {
         m->checked = m->checked | MAIL_CHECK_MASK_COPIED;
@@ -950,12 +948,9 @@ void WorldSession::HandleQueryNextMailTime(NullClientPacket const& /*packet*/)
 {
     MasterPlayer* player = GetMasterPlayer();
     ASSERT(player);
-    WorldPacket data(MSG_QUERY_NEXT_MAIL_TIME, 8);
-    if (player->HasUnreadMail())
-        data << float(0);
-    else
-        data << float(-86400.0f);
-    SendPacket(&data);
+    auto nextMailTime = std::make_unique<WorldPackets::Mail::QueryNextMailTimeResponse>();
+    nextMailTime->nextMailTime = player->HasUnreadMail() ? 0.0f : -float(DAY);
+    SendPacket(std::move(nextMailTime));
 }
 
 /*! @} */

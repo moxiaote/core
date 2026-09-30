@@ -37,8 +37,11 @@
 #include "Timer.h"
 #include "Camera.h"
 #include "Cell.h"
+
+#include <memory>
 #include <string>
 
+class ServerPacket;
 class WorldPacket;
 class UpdateData;
 class Corpse;
@@ -67,6 +70,8 @@ public:
 typedef std::unordered_map<Player*, UpdateData> UpdateDataMapType;
 
 static constexpr float QUEST_SHARE_DISTANCE = 14.0f;
+
+static constexpr Milliseconds const HEARTBEAT_INTERVAL = Milliseconds(BATCHING_INTERVAL * 13);
 
 //use this class to measure time between world update ticks
 //essential for units updating their spells after cells become active
@@ -485,6 +490,8 @@ class WorldObject : public Object
         virtual ~WorldObject () override {}
 
         virtual void Update(uint32 /*update_diff*/, uint32 /*time_diff*/);
+        virtual void Heartbeat() {}
+        Milliseconds m_heartbeatTimer;
 
         void _Create(uint32 guidlow, HighGuid guidhigh);
 
@@ -659,6 +666,7 @@ class WorldObject : public Object
         virtual void CleanupsBeforeDelete();                // used in destructor or explicitly before mass creature delete to remove cross-references to already deleted units
 
         // Send to players
+        virtual void SendMessageToSet(std::unique_ptr<ServerPacket const> packet, bool self) const;
         virtual void SendMessageToSet(WorldPacket* data, bool self) const;
 
         // Send to players who have object at client
@@ -666,7 +674,9 @@ class WorldObject : public Object
         template<class DelivererType>
         void SendObjectMessageToSetImpl(WorldPacket* data, bool self, WorldObject const* except = nullptr) const;
     public:
+        void SendObjectMessageToSet(std::unique_ptr<ServerPacket const> packet, bool self, WorldObject const* except = nullptr) const;
         void SendObjectMessageToSet(WorldPacket* data, bool self, WorldObject const* except = nullptr) const;
+        void SendMovementMessageToSet(std::unique_ptr<ServerPacket const> packet, bool self, WorldObject const* except = nullptr);
         void SendMovementMessageToSet(WorldPacket data, bool self, WorldObject const* except = nullptr);
 
         virtual void SendMessageToSetInRange(WorldPacket* data, float dist, bool self) const;
@@ -697,7 +707,7 @@ class WorldObject : public Object
 
         void SendObjectSpawnAnim() const;
         void SendObjectDeSpawnAnim() const;
-        
+
         bool IsControlledByPlayer() const;
         bool IsLikePlayer() const;
         virtual Player* GetAffectingPlayer() const { return nullptr; }
@@ -739,6 +749,8 @@ class WorldObject : public Object
         //obtain terrain data for map where this object belong...
         TerrainInfo const* GetTerrain() const;
         bool HasMMapsForCurrentMap() const;
+        virtual bool IsInWater() const;
+        virtual bool IsUnderwater() const;
 
         void SetZoneScript();
         virtual ZoneScript* GetZoneScript() const { return m_zoneScript; }
@@ -754,7 +766,6 @@ class WorldObject : public Object
         Creature* FindRandomCreature(uint32 entry, float range, bool alive = true, Creature const* except = nullptr) const;
         GameObject* FindNearestGameObject(uint32 entry, float range) const;
         GameObject* FindRandomGameObject(uint32 entry, float range) const;
-        GameObject* FindNearbyClosedDoor(float range) const;
         Player* FindNearestPlayer(float range) const;
         Player* FindNearestHostilePlayer(float range) const;
         Player* FindNearestFriendlyPlayer(float range) const;

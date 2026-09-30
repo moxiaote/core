@@ -63,3 +63,68 @@ void WorldPackets::Mail::MailCreateTextItem::ReadFromWorldPacket(WorldPacket& re
     recv_data >> mailTemplateId;
 #endif
 }
+
+// --- Server Packets ---
+
+size_t WorldPackets::Mail::ReceivedMail::EstimateFinalSize() const
+{
+    return sizeof(notifyDelay);
+}
+
+void WorldPackets::Mail::ReceivedMail::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << notifyDelay;
+}
+
+size_t WorldPackets::Mail::ItemTextQueryResponse::EstimateFinalSize() const
+{
+    return sizeof(itemTextId) +
+           text.size() + sizeof(char) /*null terminator*/;
+}
+
+void WorldPackets::Mail::ItemTextQueryResponse::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << itemTextId;
+    buffer << text;
+}
+
+size_t WorldPackets::Mail::QueryNextMailTimeResponse::EstimateFinalSize() const
+{
+    return sizeof(nextMailTime);
+}
+
+void WorldPackets::Mail::QueryNextMailTimeResponse::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << nextMailTime;
+}
+
+size_t WorldPackets::Mail::SendMailResult::EstimateFinalSize() const
+{
+    size_t size = sizeof(mailId) +
+                  sizeof(mailAction) +
+                  sizeof(mailError);
+
+    if (mailError == MAIL_ERR_EQUIP_ERROR)
+        size += sizeof(equipError);
+    else if (mailAction == MAIL_ITEM_TAKEN)
+        size += sizeof(itemGuidLow) +
+                sizeof(itemCount);
+
+    return size;
+}
+
+void WorldPackets::Mail::SendMailResult::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << mailId;
+    buffer << mailAction;
+    buffer << mailError;
+    if (mailError == MAIL_ERR_EQUIP_ERROR)
+    {
+        buffer << equipError;
+    }
+    else if (mailAction == MAIL_ITEM_TAKEN)
+    {
+        buffer << itemGuidLow;
+        buffer << itemCount;
+    }
+}

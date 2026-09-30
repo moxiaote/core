@@ -38,38 +38,9 @@
 
 void WorldSession::SendTradeStatus(TradeStatus status)
 {
-    WorldPacket data;
-
-    switch (status)
-    {
-        case TRADE_STATUS_BEGIN_TRADE:
-            data.Initialize(SMSG_TRADE_STATUS, 4 + 8);
-            data << uint32(status);
-            data << uint64(0);
-            break;
-        case TRADE_STATUS_OPEN_WINDOW:
-            data.Initialize(SMSG_TRADE_STATUS, 4 + 4);
-            data << uint32(status);
-            break;
-        case TRADE_STATUS_CLOSE_WINDOW:
-            data.Initialize(SMSG_TRADE_STATUS, 4 + 4 + 1 + 4);
-            data << uint32(status);
-            data << uint32(0);
-            data << uint8(0);
-            data << uint32(0);
-            break;
-        case TRADE_STATUS_ONLY_CONJURED:
-            data.Initialize(SMSG_TRADE_STATUS, 4 + 1);
-            data << uint32(status);
-            data << uint8(0);
-            break;
-        default:
-            data.Initialize(SMSG_TRADE_STATUS, 4);
-            data << uint32(status);
-            break;
-    }
-
-    SendPacket(&data);
+    auto tradePacket = std::make_unique<WorldPackets::Trade::TradeStatus>();
+    tradePacket->status = status;
+    SendPacket(std::move(tradePacket));
 }
 
 void WorldSession::HandleIgnoreTradeOpcode(NullClientPacket const& /*packet*/)
@@ -141,8 +112,9 @@ void WorldSession::MoveItems(Item* myItems[], Item* hisItems[])
     {
         ItemPosCountVec traderDst;
         ItemPosCountVec playerDst;
-        bool traderCanTrade = (myItems[i] == nullptr || trader->CanStoreItem(NULL_BAG, NULL_SLOT, traderDst, myItems[i], false) == EQUIP_ERR_OK);
-        bool playerCanTrade = (hisItems[i] == nullptr || _player->CanStoreItem(NULL_BAG, NULL_SLOT, playerDst, hisItems[i], false) == EQUIP_ERR_OK);
+        uint8 bagSlot = 0;
+        bool traderCanTrade = (myItems[i] == nullptr || trader->CanStoreItem(NULL_BAG, NULL_SLOT, traderDst, myItems[i], bagSlot, false) == EQUIP_ERR_OK);
+        bool playerCanTrade = (hisItems[i] == nullptr || _player->CanStoreItem(NULL_BAG, NULL_SLOT, playerDst, hisItems[i], bagSlot, false) == EQUIP_ERR_OK);
         if (traderCanTrade && playerCanTrade)
         {
             // Ok, if trade item exists and can be stored
@@ -205,9 +177,10 @@ void WorldSession::MoveItems(Item* myItems[], Item* hisItems[])
             // return the already removed items to the original owner
             if (myItems[i])
             {
+                uint8 bagSlot = 0;
                 if (!traderCanTrade)
                     sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "trader can't store item: %s", myItems[i]->GetGuidStr().c_str());
-                if (_player->CanStoreItem(NULL_BAG, NULL_SLOT, playerDst, myItems[i], false) == EQUIP_ERR_OK)
+                if (_player->CanStoreItem(NULL_BAG, NULL_SLOT, playerDst, myItems[i], bagSlot, false) == EQUIP_ERR_OK)
                     _player->MoveItemToInventory(playerDst, myItems[i], true, true);
                 else
                     sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "player can't take item back: %s", myItems[i]->GetGuidStr().c_str());
@@ -215,9 +188,10 @@ void WorldSession::MoveItems(Item* myItems[], Item* hisItems[])
             // return the already removed items to the original owner
             if (hisItems[i])
             {
+                uint8 bagSlot = 0;
                 if (!playerCanTrade)
                     sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "player can't store item: %s", hisItems[i]->GetGuidStr().c_str());
-                if (trader->CanStoreItem(NULL_BAG, NULL_SLOT, traderDst, hisItems[i], false) == EQUIP_ERR_OK)
+                if (trader->CanStoreItem(NULL_BAG, NULL_SLOT, traderDst, hisItems[i], bagSlot, false) == EQUIP_ERR_OK)
                     trader->MoveItemToInventory(traderDst, hisItems[i], true, true);
                 else
                     sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "trader can't take item back: %s", hisItems[i]->GetGuidStr().c_str());
@@ -715,10 +689,10 @@ void WorldSession::HandleInitiateTradeOpcode(WorldPackets::Trade::InitiateTrade 
     _player->m_trade->SetScamPreventionDelay(200);
     pOther->m_trade->SetScamPreventionDelay(200);
 
-    WorldPacket data(SMSG_TRADE_STATUS, 12);
-    data << uint32(TRADE_STATUS_BEGIN_TRADE);
-    data << ObjectGuid(_player->GetObjectGuid());
-    pOther->GetSession()->SendPacket(&data);
+    auto tradePacket = std::make_unique<WorldPackets::Trade::TradeStatus>();
+    tradePacket->status = TRADE_STATUS_BEGIN_TRADE;
+    tradePacket->playerGuid = _player->GetObjectGuid();
+    pOther->GetSession()->SendPacket(std::move(tradePacket));
 }
 
 void WorldSession::HandleSetTradeGoldOpcode(WorldPackets::Trade::SetTradeGold const& packet)

@@ -130,7 +130,6 @@ set (SCRIPTS_SRCS
     eastern_kingdoms/hillsbrad_foothills/hillsbrad_foothills.cpp
     eastern_kingdoms/hinterlands/hinterlands.cpp
     eastern_kingdoms/loch_modan/loch_modan.cpp
-    eastern_kingdoms/redridge_mountains/redridge_mountains.cpp
     eastern_kingdoms/searing_gorge/searing_gorge.cpp
     eastern_kingdoms/silverpine_forest/silverpine_forest.cpp
     eastern_kingdoms/silverpine_forest/shadowfang_keep/instance_shadowfang_keep.cpp
@@ -210,7 +209,6 @@ set (SCRIPTS_SRCS
     kalimdor/silithus/ruins_of_ahnqiraj/boss_moam.cpp
     kalimdor/silithus/ruins_of_ahnqiraj/boss_ossirian.cpp
     kalimdor/silithus/ruins_of_ahnqiraj/instance_ruins_of_ahnqiraj.cpp
-    kalimdor/silithus/ruins_of_ahnqiraj/npc_sandstalker.cpp
     kalimdor/silithus/ruins_of_ahnqiraj/ruins_of_ahnqiraj.cpp
     kalimdor/silithus/temple_of_ahnqiraj/boss_bug_trio.cpp
     kalimdor/silithus/temple_of_ahnqiraj/boss_cthun.cpp
@@ -227,7 +225,6 @@ set (SCRIPTS_SRCS
     kalimdor/tanaris/tanaris.cpp
     kalimdor/tanaris/zulfarrak/instance_zulfarrak.cpp
     kalimdor/tanaris/zulfarrak/zulfarrak.cpp
-    kalimdor/teldrassil/teldrassil.cpp
     kalimdor/the_barrens/the_barrens.cpp
     kalimdor/the_barrens/razorfen_downs/instance_razorfen_downs.cpp
     kalimdor/the_barrens/razorfen_downs/razorfen_downs.cpp
@@ -278,12 +275,6 @@ if((${CMAKE_VERSION} VERSION_LESS "3.16") OR USE_PCH_OLD)
   endif()
 endif()
 
-if(WIN32)
-  if(MINGW)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive")
-  endif()
-endif()
-
 # Used in game ScriptMgr, not need here
 list(REMOVE_ITEM SCRIPTS_SRCS ScriptLoader.cpp)
 list(REMOVE_ITEM SCRIPTS_SRCS ScriptLoader_noscripts.cpp)
@@ -303,7 +294,6 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/PrecompiledHeaders
   ${CMAKE_SOURCE_DIR}/src/shared
   ${CMAKE_SOURCE_DIR}/src/framework
-  ${CMAKE_SOURCE_DIR}/src/framework/Network
   ${CMAKE_SOURCE_DIR}/src/game
   ${CMAKE_SOURCE_DIR}/src/game/AI
   ${CMAKE_SOURCE_DIR}/src/game/Anticheat
@@ -332,7 +322,6 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/src/game/vmap
   ${CMAKE_SOURCE_DIR}/dep/include
   ${CMAKE_SOURCE_DIR}/dep/recastnavigation
-  ${CMAKE_SOURCE_DIR}/dep/include/g3dlite
   ${CMAKE_SOURCE_DIR}/dep/recastnavigation/Detour/Include
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/src/shared
@@ -342,6 +331,7 @@ include_directories(
 add_library(${LIBRARY_NAME} STATIC
   ${SCRIPTS_SRCS}
 )
+mangos_target_flags(${LIBRARY_NAME})
 
 SET_TARGET_PROPERTIES (${LIBRARY_NAME} PROPERTIES FOLDER "Game Libs")
 

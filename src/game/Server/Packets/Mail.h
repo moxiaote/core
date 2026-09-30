@@ -4,6 +4,8 @@
 #include "Packet.h"
 #include "SharedDefines.h"
 #include "ObjectGuid.h"
+#include <string>
+#include <vector>
 
 namespace WorldPackets { namespace Mail
 {
@@ -96,6 +98,54 @@ namespace WorldPackets { namespace Mail
         explicit MailCreateTextItem() : ClientPacket(CMSG_MAIL_CREATE_TEXT_ITEM) {}
         void ReadFromWorldPacket(WorldPacket& recv_data) override;
     };
+    // --- Server Packets ---
+
+    class ReceivedMail final : public ServerPacket
+    {
+    public:
+        uint32 notifyDelay = 0;
+
+        explicit ReceivedMail() : ServerPacket(SMSG_RECEIVED_MAIL) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
+    class ItemTextQueryResponse final : public ServerPacket
+    {
+    public:
+        uint32 itemTextId = 0;
+        std::string text;
+
+        explicit ItemTextQueryResponse() : ServerPacket(SMSG_ITEM_TEXT_QUERY_RESPONSE) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
+    class QueryNextMailTimeResponse final : public ServerPacket
+    {
+    public:
+        float nextMailTime = 0.0f;
+
+        explicit QueryNextMailTimeResponse() : ServerPacket(MSG_QUERY_NEXT_MAIL_TIME) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
+    class SendMailResult final : public ServerPacket
+    {
+    public:
+        uint32 mailId = 0;
+        uint32 mailAction = 0;
+        uint32 mailError = 0;
+        uint32 equipError = 0;
+        uint32 itemGuidLow = 0;
+        uint32 itemCount = 0;
+
+        SendMailResult() : ServerPacket(SMSG_SEND_MAIL_RESULT) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
 }} // namespace WorldPackets::Mail
 
 #endif // MANGOS_PACKETS_MAIL_H

@@ -49,7 +49,9 @@ namespace WorldPackets { namespace Movement
         uint32       movementCounter = 0;
 #endif
         MovementInfo movementInfo;
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_4_2
         float        speed = 0.0f;
+#endif
 
         MoveSpeedAck() : ClientPacket(OPCODE_WILL_BE_SET_IN_READ_FUNCTION) {}
         void ReadFromWorldPacket(WorldPacket& recv_data) override;
@@ -117,6 +119,16 @@ namespace WorldPackets { namespace Movement
 
         MoveNotActiveMover() : ClientPacket(CMSG_MOVE_NOT_ACTIVE_MOVER) {}
         void ReadFromWorldPacket(WorldPacket& recv_data) override;
+    };
+
+    class MountSpecialAnim final : public ServerPacket
+    {
+    public:
+        ObjectGuid mountedUnitGuid;
+
+        MountSpecialAnim() : ServerPacket(SMSG_MOUNTSPECIAL_ANIM) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
     };
 }} // namespace WorldPackets::Movement
 

@@ -41,7 +41,10 @@
 #include "Language.h"
 #include "Chat.h"
 #include "MasterPlayer.h"
+#include "PlayerBroadcaster.h"
 #include "Crypto/Hash/MD5.h"
+
+#include <limits>
 
 // select opcodes appropriate for processing in Map::Update context for current session state
 static bool MapSessionFilterHelper(WorldSession* session, OpcodeHandler const& opHandle)
@@ -73,7 +76,7 @@ WorldSession::WorldSession(uint32 id, std::shared_ptr<WorldSocket> sock, Account
     m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false), m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)),
     m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)), m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED), m_warden(nullptr), m_cheatData(nullptr),
     m_bot(nullptr), m_clientOS(CLIENT_OS_UNKNOWN), m_clientPlatform(CLIENT_PLATFORM_UNKNOWN), m_gameBuild(0), m_verifiedEmail(true),
-    m_charactersCount(10), m_characterMaxLevel(0), m_lastPubChannelMsgTime(0), m_moveRejectTime(0), m_masterPlayer(nullptr), m_receivedPacketType{},
+    m_charactersCount(std::numeric_limits<uint32>::max()), m_characterMaxLevel(0), m_lastPubChannelMsgTime(0), m_moveRejectTime(0), m_masterPlayer(nullptr), m_receivedPacketType{},
     m_floodPacketsCount{}, m_tutorials{}
 {
     m_remoteIpAddress = sock ? sock->GetRemoteIpString() : "<BOT>";
@@ -107,6 +110,33 @@ WorldSession::~WorldSession()
 char const* WorldSession::GetPlayerName() const
 {
     return GetPlayer() ? GetPlayer()->GetName() : "<none>";
+}
+
+// Sends a packet to the client.
+void WorldSession::SendPacket(std::unique_ptr<ServerPacket const> packet)
+{
+    WorldPacket buffer;
+    { // TODO: This part will be offloaded to an IO thread soon. Only the IO thread will allocate a buffer.
+        packet->WritePacket(buffer);
+        buffer.FillPacketTime(WorldTimer::getMSTime());
+    }
+
+    // There is a maximum size packet.
+    if (buffer.size() > 0x8000)
+    {
+        // Packet will be rejected by client
+        sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[NETWORK] Packet %s size %u is too large. Not sent [Account %u Player %s]", LookupOpcodeName(buffer.GetOpcode()), buffer.size(), GetAccountId(), GetPlayerName());
+        return;
+    }
+
+    if (!m_socket)
+    {
+        if (GetBot() && GetBot()->ai)
+            GetBot()->ai->OnPacketReceived(&buffer); // TODO Direct forward `ServerPacket` to bot in next PR
+        return;
+    }
+
+    SendPacketImpl(&buffer); // TODO Queue `ServerPacket` and serialize it in IO thread
 }
 
 // Send a packet to the client
@@ -393,10 +423,10 @@ void WorldSession::CheckPlayedTimeLimit(time_t now)
 void WorldSession::SendPlayTimeWarning(PlayTimeFlag flag, int32 timeLeftInSeconds)
 {
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_7_1
-    WorldPacket data(SMSG_PLAY_TIME_WARNING, sizeof(uint32) + sizeof(int32));
-    data << uint32(flag);
-    data << int32(timeLeftInSeconds);
-    SendPacket(&data);
+    auto packet = std::make_unique<WorldPackets::Misc::PlayTimeWarning>();
+    packet->flag = static_cast<uint32>(flag);
+    packet->timeLeftInSeconds = timeLeftInSeconds;
+    SendPacket(std::move(packet));
 #endif
 }
 
@@ -461,8 +491,8 @@ bool WorldSession::Update(PacketFilter& updater)
                 m_warden = nullptr;
             }
 
-            if (GetPlayer())
-                GetPlayer()->DeletePacketBroadcaster();
+            if (GetPlayer() && GetPlayer()->m_broadcaster)
+                GetPlayer()->m_broadcaster->ChangeSocket(nullptr);
 
             // Character stays IG for 2 minutes
             return ForcePlayerLogoutDelay();
@@ -811,8 +841,7 @@ void WorldSession::LogoutPlayer(bool Save)
         SetPlayer(nullptr);                                    // deleted in Remove/DeleteFromWorld call
 
         // Send the 'logout complete' packet to the client
-        WorldPacket data(SMSG_LOGOUT_COMPLETE, 0);
-        SendPacket(&data);
+        SendPacket(std::make_unique<WorldPackets::Misc::LogoutComplete>());
 
         sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "SESSION: Sent SMSG_LOGOUT_COMPLETE Message");
     }
@@ -1000,7 +1029,7 @@ void WorldSession::SetAccountData(NewAccountData::AccountDataType type, const st
         {
             std::string escapedData = data;
             CharacterDatabase.escape_string(escapedData);
-            CharacterDatabase.PExecute("REPLACE INTO `account_data` VALUES (%u, %u, %u, '%s')", GetAccountId(), uint32(type), uint64(currentTime), escapedData.c_str());
+            CharacterDatabase.PExecute("REPLACE INTO `account_data` VALUES (%u, %u, %llu, '%s')", GetAccountId(), uint32(type), uint64(currentTime), escapedData.c_str());
         }
     }
     else
@@ -1017,7 +1046,7 @@ void WorldSession::SetAccountData(NewAccountData::AccountDataType type, const st
         {
             std::string escapedData = data;
             CharacterDatabase.escape_string(escapedData);
-            CharacterDatabase.PExecute("REPLACE INTO `character_account_data` VALUES (%u, %u, %u, '%s')", m_currentPlayerGuid.GetCounter(), uint32(type), uint64(currentTime), escapedData.c_str());
+            CharacterDatabase.PExecute("REPLACE INTO `character_account_data` VALUES (%u, %u, %llu, '%s')", m_currentPlayerGuid.GetCounter(), uint32(type), uint64(currentTime), escapedData.c_str());
         }
     }
 
@@ -1030,7 +1059,9 @@ void WorldSession::SendAccountDataTimes()
     using namespace Crypto::Hash;
 
     bool const isOldClient = GetGameBuild() <= CLIENT_BUILD_1_8_4;
-    uint32 const dataCount = isOldClient ? OldAccountData::NUM_ACCOUNT_DATA_TYPES : NewAccountData::NUM_ACCOUNT_DATA_TYPES;
+    uint32 const dataCount = isOldClient
+                ? static_cast<uint32>(OldAccountData::NUM_ACCOUNT_DATA_TYPES)
+                : static_cast<uint32>(NewAccountData::NUM_ACCOUNT_DATA_TYPES);
     WorldPacket data(SMSG_ACCOUNT_DATA_MD5, dataCount * MD5::Digest::size());
     for (uint32 index = 0; index < NewAccountData::NUM_ACCOUNT_DATA_TYPES; ++index)
     {

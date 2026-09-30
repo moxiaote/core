@@ -43,7 +43,10 @@ struct WarlockDemonicSacrificeScript : SpellScript
                     sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Demonic Sacrifice: Unhandled creature entry (%u) case.", entry);
                     return true;
             }
-
+            spell->m_casterUnit->RemoveAurasDueToSpell(18789);
+            spell->m_casterUnit->RemoveAurasDueToSpell(18792);
+            spell->m_casterUnit->RemoveAurasDueToSpell(18790);
+            spell->m_casterUnit->RemoveAurasDueToSpell(18791);
             spell->m_casterUnit->CastSpell(spell->m_casterUnit, spellId, true);
         }
         return true;
@@ -177,7 +180,24 @@ struct WarlockLifeTapScript : SpellScript
             dmg = spell->m_casterUnit->SpellDamageBonusTaken(spell->m_casterUnit, spell->m_spellInfo, effIdx, dmg, SPELL_DIRECT_DAMAGE);
             //JieFuFuTi(34001) reduce taken damage do not work on life tap.
             if(spell->m_casterUnit->HasAura(34001)){
-                uint32 jiefufuti = sWorld.getConfig(CONFIG_UINT32_BUFF_JIEFUFUTI);
+                uint32 jiefufuti = sWorld.getConfig(CONFIG_UINT32_BUFF_JIEFUFUTI_COMMON);
+                if (MapEntry const* mapEntry = spell->m_casterUnit->GetMap()->GetMapEntry())
+                {
+                    switch (mapEntry->mapType)
+                    {
+                        case MAP_INSTANCE:
+                            jiefufuti = sWorld.getConfig(CONFIG_UINT32_BUFF_JIEFUFUTI_INSTANCE);
+                            break;
+                        case MAP_RAID:
+                            jiefufuti = sWorld.getConfig(CONFIG_UINT32_BUFF_JIEFUFUTI_RAID);
+                            break;
+                        case MAP_BATTLEGROUND:
+                            jiefufuti = sWorld.getConfig(CONFIG_UINT32_BUFF_JIEFUFUTI_BATTLEGROUND);
+                            break;
+                        default:
+                            break;
+                    }
+                }
                 if (jiefufuti > 99)
                     jiefufuti = 99;
                 if(Player* pCasterUnit = ::ToPlayer(spell->m_casterUnit))
@@ -187,7 +207,7 @@ struct WarlockLifeTapScript : SpellScript
                 }
                 dmg = (100.0f / (100.0f - jiefufuti)) * dmg;
             }
-            int32 idmg = dither(dmg);
+            int32 idmg = rand_dither(dmg);
 
             if (int32(spell->m_casterUnit->GetHealth()) > idmg)
             {
@@ -280,7 +300,7 @@ struct WarlockDevourMagicScript : SpellScript
                     return;
             }
             // Devour Magic - 40% max mana bonus
-            uint32 modPoint = basePoint + dither(spell->m_casterUnit->GetMaxPower(POWER_MANA) * 0.40f);
+            uint32 modPoint = basePoint + rand_dither(spell->m_casterUnit->GetMaxPower(POWER_MANA) * 0.40f);
             //spell->m_casterUnit->CastSpell(spell->m_casterUnit, healSpell, true);
             spell->m_casterUnit->CastCustomSpell(spell->m_casterUnit, healSpell, modPoint, {}, {}, true, nullptr);
         }
@@ -384,7 +404,7 @@ struct WarlockCreateHealthstoneScript : SpellScript
     {
         Player* pCaster = spell->m_caster->ToPlayer();
         if (!pCaster)
-            SPELL_CAST_OK;
+            return SPELL_CAST_OK;
 
         uint32 const itemId = GetItemId(pCaster, spell->m_spellInfo->Id);
         if (!itemId)
@@ -394,7 +414,7 @@ struct WarlockCreateHealthstoneScript : SpellScript
         InventoryResult msg = pCaster->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemId, 1);
         if (msg != EQUIP_ERR_OK)
         {
-            pCaster->SendEquipError(msg, nullptr, nullptr, itemId);
+            pCaster->SendEquipError(msg, nullptr, nullptr, 0, itemId);
             return SPELL_FAILED_DONT_REPORT;
         }
 
@@ -412,7 +432,7 @@ struct WarlockCreateHealthstoneScript : SpellScript
         uint32 const itemId = GetItemId(spell->GetUnitTarget(), spell->m_spellInfo->Id);
         if (!itemId)
             return true;
-        
+
         spell->DoCreateItem(effIdx, itemId);
         return true;
     }

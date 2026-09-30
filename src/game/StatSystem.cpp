@@ -25,6 +25,7 @@
 #include "Player.h"
 #include "SpellAuras.h"
 #include "World.h"
+#include "Platform/CompilerDefs.h"
 
 /*#######################################
 ########                         ########
@@ -200,6 +201,16 @@ float Unit::GetAttackPowerFromStrengthAndAgility(bool ranged, float strength, fl
         {
             case CLASS_HUNTER:
                 val2 = level * 2.0f + agility * 2.0f - 10.0f;
+                if (HasAura(19168))
+                    val2 += agility * 0.2f;
+                else if (HasAura(19180))
+                    val2 += agility * 0.4f;
+                else if (HasAura(19181))
+                    val2 += agility * 0.6f;
+                else if (HasAura(24296))
+                    val2 += agility * 0.8f;
+                else if (HasAura(24297))
+                    val2 += agility;
                 break;
             case CLASS_ROGUE:
                 val2 = level        + agility - 10.0f;
@@ -240,6 +251,16 @@ float Unit::GetAttackPowerFromStrengthAndAgility(bool ranged, float strength, fl
                 break;
             case CLASS_HUNTER:
                 val2 = level * 2.0f + strength + agility - 20.0f;
+                if (HasAura(19168))
+                    val2 += agility * 0.1f;
+                else if (HasAura(19180))
+                    val2 += agility * 0.2f;
+                else if (HasAura(19181))
+                    val2 += agility * 0.3f;
+                else if (HasAura(24296))
+                    val2 += agility * 0.4f;
+                else if (HasAura(24297))
+                    val2 += agility * 0.5f;
                 break;
             case CLASS_SHAMAN:
                 val2 = level * 2.0f + strength * 2.0f    - 20.0f;
@@ -352,7 +373,7 @@ void Player::UpdateAttackPowerAndDamage(bool ranged)
         index_mod = UNIT_FIELD_RANGED_ATTACK_POWER_MODS;
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
         index_mult = UNIT_FIELD_RANGED_ATTACK_POWER_MULTIPLIER;
-#endif  
+#endif
     }
 
     float baseAttackPower = GetAttackPowerFromStrengthAndAgility(ranged, GetStat(STAT_STRENGTH), GetStat(STAT_AGILITY));
@@ -412,24 +433,28 @@ void Player::CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, fl
 
     if (IsAttackSpeedOverridenShapeShift()) // check if player is in shapeshift which doesnt use weapon
     {
-        /* Druids don't use weapons so a weapon damage index > 0 
+        /* Druids don't use weapons so a weapon damage index > 0
            should not affect their damage. Fixes crazy druid scaling
            when using melee weapons with two or more damage types on it */
         if (index > 0)
         {
-            // Note that CalculateDamage will pull max_damage up to 5.0f, 
+            // Note that CalculateDamage will pull max_damage up to 5.0f,
             // so they'll still get some extra damage...
             weapon_mindamage = 0.0f;
             weapon_maxdamage = 0.0f;
         }
-        else 
+        else
         {
             uint32 lvl = GetLevel();
             if (lvl > 60)
                 lvl = 60;
 
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_6_1
+#if COMPILER == COMPILER_MICROSOFT
 #pragma warning( push )
-#pragma warning( disable : 4065)
+#pragma warning(disable : 4065) // Has default but no case
+#endif
+#endif
 
             switch (GetShapeshiftForm())
             {
@@ -448,8 +473,12 @@ void Player::CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, fl
                     break;
             }
 
-#pragma warning( pop ) 
-            
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_6_1
+#if COMPILER == COMPILER_MICROSOFT
+#pragma warning( pop )
+#endif
+#endif
+
             total_value = 0.0f;                             // remove benefit from weapon enchants
         }
     }
@@ -653,6 +682,19 @@ void Player::UpdateDodgePercentage()
     }
     // Dodge from agility
     value += GetDodgeFromAgility();
+    if (GetClass() == CLASS_HUNTER)
+    {
+        if (HasAura(19168))
+            value *= 1.1f;
+        else if (HasAura(19180))
+            value *= 1.2f;
+        else if (HasAura(19181))
+            value *= 1.3f;
+        else if (HasAura(24296))
+            value *= 1.4f;
+        else if (HasAura(24297))
+            value *= 1.5f;
+    }
     // Modify value from defense skill
     value += (int32(GetDefenseSkillValue()) - int32(GetSkillMaxForLevel())) * 0.04f;
     // Dodge from SPELL_AURA_MOD_DODGE_PERCENT aura
@@ -835,7 +877,7 @@ void Creature::UpdateManaRegen()
     float power_regen = GetTotalAuraMultiplierByMiscValue(SPELL_AURA_MOD_POWER_REGEN_PERCENT, POWER_MANA);
     // Mana regen from SPELL_AURA_MOD_POWER_REGEN aura
     float power_regen_mp5 = GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_POWER_REGEN, POWER_MANA) / 5.0f;
-    
+
     m_manaRegen = (GetRegenMPPerSpirit() * power_regen + power_regen_mp5 + (0.6f * sqrt(intellect) / 5.0f)) * ManaIncreaseRate * 5.0f;
 }
 
@@ -933,7 +975,7 @@ void Creature::UpdateDamagePhysical(WeaponAttackType attType)
     float weapon_mindamage = GetWeaponDamageRange(attType, MINDAMAGE);
     float weapon_maxdamage = GetWeaponDamageRange(attType, MAXDAMAGE);
 
-    // Disarm effects. Only applies to mobs with a weapon equipped. Sources suggest a 
+    // Disarm effects. Only applies to mobs with a weapon equipped. Sources suggest a
     // ~60% damage reduction on mobs which can be disarmed and have a weapon
     // http://wowwiki.wikia.com/wiki/Attumen_the_Huntsman?oldid=1377353
     // http://wowwiki.wikia.com/wiki/Disarm?direction=prev&oldid=200198

@@ -84,3 +84,96 @@ void WorldPackets::Npc::GossipSelectOption::ReadFromWorldPacket(WorldPacket& rec
         recv_data >> code;
     }
 }
+
+// --- Server Packets ---
+
+size_t WorldPackets::Npc::GossipComplete::EstimateFinalSize() const
+{
+    return 0;
+}
+
+void WorldPackets::Npc::GossipComplete::AppendBodyTo(ByteBuffer& /*buffer*/) const
+{
+}
+
+size_t WorldPackets::Npc::ShowBank::EstimateFinalSize() const
+{
+    return sizeof(bankerGuid);
+}
+
+void WorldPackets::Npc::ShowBank::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << bankerGuid;
+}
+
+size_t WorldPackets::Npc::StableResult::EstimateFinalSize() const
+{
+    return sizeof(result);
+}
+
+void WorldPackets::Npc::StableResult::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << result;
+}
+
+size_t WorldPackets::Npc::TrainerBuySucceeded::EstimateFinalSize() const
+{
+    return sizeof(trainerGuid) +
+           sizeof(spellId);
+}
+
+void WorldPackets::Npc::TrainerBuySucceeded::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << trainerGuid;
+    buffer << spellId;
+}
+
+size_t WorldPackets::Npc::TrainerBuyFailed::EstimateFinalSize() const
+{
+    return sizeof(trainerGuid) +
+           sizeof(serviceId) +
+           sizeof(errorCode);
+}
+
+void WorldPackets::Npc::TrainerBuyFailed::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << trainerGuid;
+    buffer << serviceId;
+    buffer << errorCode;
+}
+
+size_t WorldPackets::Npc::TabardVendorActivateResponse::EstimateFinalSize() const
+{
+    return sizeof(tabardVendorNpcGuid);
+}
+
+void WorldPackets::Npc::TabardVendorActivateResponse::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << tabardVendorNpcGuid;
+}
+
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_4_2
+size_t WorldPackets::Npc::AreaSpiritHealerTime::EstimateFinalSize() const
+{
+    return sizeof(spiritHealerGuid) +
+           sizeof(nextResurrectTime);
+}
+
+void WorldPackets::Npc::AreaSpiritHealerTime::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << spiritHealerGuid;
+    buffer << nextResurrectTime;
+}
+#endif
+
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_6_1
+size_t WorldPackets::Npc::BinderConfirm::EstimateFinalSize() const
+{
+    return sizeof(binderGuid);
+}
+
+void WorldPackets::Npc::BinderConfirm::AppendBodyTo(ByteBuffer& buffer) const
+{
+    buffer << binderGuid;
+}
+#endif

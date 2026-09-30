@@ -477,7 +477,11 @@ void ThreatManager::addThreat(Unit* pVictim, float threat, bool crit, SpellSchoo
                          pThreatSpell->Id == 34514 ||
                          pThreatSpell->Id == 34522 ||
                          pThreatSpell->Id == 34530 ||
-                         pThreatSpell->Id == 34543))
+                         pThreatSpell->Id == 34543 ||
+                         pThreatSpell->Id == 34570 ||
+                         pThreatSpell->Id == 34571 ||
+                         pThreatSpell->Id == 34666 ||
+                         pThreatSpell->Id == 34324))
         return;
 
     // Master Demonologist rank 5

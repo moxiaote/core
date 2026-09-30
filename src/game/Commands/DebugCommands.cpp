@@ -38,7 +38,8 @@
 #include "World.h"
 #include "ScriptMgr.h"
 #include "Conditions.h"
- // VMAPS
+#include "Utilities/Random.h"
+// VMAPS
 #include "VMapFactory.h"
 #include "ModelInstance.h"
 #include "GameObjectModel.h"
@@ -69,7 +70,7 @@ bool ChatHandler::HandleSpellEffectsCommand(char *args)
     SpellEntry const* pSpell = sSpellMgr.GetSpellEntry(spellId);
     if (!pSpell)
     {
-        PSendSysMessage("Sort %u inexistant dans les DBCs.", spellId);
+        PSendSysMessage("Spell %u does not exist in the DBCs.", spellId);
         SetSentErrorMessage(true);
         return false;
     }
@@ -198,16 +199,17 @@ bool ChatHandler::HandleDebugSendSpellFailCommand(char* args)
     if (!ExtractOptUInt32(&args, failarg2, 0))
         return false;
 
-    WorldPacket data(SMSG_CAST_RESULT, 4 + 1 + 1);
-    data << uint32(133);
-    data << uint8(2);
-    data << uint8(failnum);
-    if (failarg1 || failarg2)
-        data << uint32(failarg1);
-    if (failarg2)
-        data << uint32(failarg2);
+    SpellEntry const* spellEntry = sSpellMgr.GetSpellEntry(133); // Fireball
+    MANGOS_ASSERT(spellEntry);
 
-    m_session->SendPacket(&data);
+    auto packet = std::make_unique<WorldPackets::Spell::CastResult>();
+    packet->spellId = spellEntry->Id;
+    packet->result = static_cast<uint8>(SPELL_RESULT_STATUS_FAIL);
+    packet->failureReason = static_cast<uint8>(failnum);
+    packet->failureArg1 = failarg1;
+    packet->failureArg2 = failarg2;
+
+    m_session->SendPacket(std::move(packet));
 
     return true;
 }
@@ -238,10 +240,10 @@ bool ChatHandler::HandleDebugSendNextChannelSpellVisualCommand(char *args)
     }
     if (id && id <= sSpellMgr.GetMaxSpellId())
     {
-        WorldPacket data(MSG_CHANNEL_START, (4 + 4));
-        data << uint32(id);
-        data << uint32(60000);
-        m_session->GetPlayer()->SendDirectMessage(&data);
+        auto packet = std::make_unique<WorldPackets::Spell::ChannelStart>();
+        packet->spellId = id;
+        packet->duration = 60000;
+        m_session->SendPacket(std::move(packet));
         m_session->GetPlayer()->SetUInt32Value(UNIT_CHANNEL_SPELL, id);
         PSendSysMessage("Playing channel visual of spell %u %s %s", id, spellInfo->SpellName[0].c_str(), spellInfo->Rank[0].c_str());
         return true;
@@ -259,10 +261,10 @@ bool ChatHandler::HandleSendSpellChannelVisualCommand(char *args)
 
     if (uiPlayId && uiPlayId <= sSpellMgr.GetMaxSpellId())
     {
-        WorldPacket data(MSG_CHANNEL_START, (4 + 4));
-        data << uint32(uiPlayId);
-        data << uint32(60000);
-        m_session->GetPlayer()->SendDirectMessage(&data);
+        auto packet = std::make_unique<WorldPackets::Spell::ChannelStart>();
+        packet->spellId = uiPlayId;
+        packet->duration = 60000;
+        m_session->SendPacket(std::move(packet));
         m_session->GetPlayer()->SetUInt32Value(UNIT_CHANNEL_SPELL, uiPlayId);
         SpellEntry const* spellInfo = sSpellMgr.GetSpellEntry(uiPlayId);
         PSendSysMessage("Playing channel visual of spell %u %s %s", uiPlayId, spellInfo->SpellName[0].c_str(), spellInfo->Rank[0].c_str());
@@ -437,7 +439,7 @@ bool ChatHandler::HandleDebugSendOpcodeCommand(char* /*args*/)
     }
     ifs.close();
     sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "Sending opcode %u", data.GetOpcode());
-    data.hexlike();
+    data.PrintAsHex();
     m_session->SendPacket(&data);
     PSendSysMessage(LANG_COMMAND_OPCODESENT, data.GetOpcode(), unit->GetName());
     return true;
@@ -545,9 +547,9 @@ bool ChatHandler::HandleDebugPlayMusicCommand(char* args)
         return false;
     }
 
-    WorldPacket data(SMSG_PLAY_MUSIC, 4);
-    data << int32(dwSoundId);
-    target->SendDirectMessage(&data);
+    auto packet = std::make_unique<WorldPackets::Misc::PlayMusic>();
+    packet->musicId = dwSoundId;
+    target->GetSession()->SendPacket(std::move(packet));
 
     PSendSysMessage(LANG_YOU_HEAR_SOUND, dwSoundId);
     return true;
@@ -599,12 +601,11 @@ bool ChatHandler::HandleDebugSendChannelNotifyCommand(char* args)
     if (!ExtractUInt32(&args, code) || code > 255)
         return false;
 
-    WorldPacket data(SMSG_CHANNEL_NOTIFY, (1 + 10));
-    data << uint8(code);                                    // notify type
-    data << name;                                           // channel name
-    data << uint32(0);
-    data << uint32(0);
-    m_session->SendPacket(&data);
+    auto packet = std::make_unique<WorldPackets::Channel::ChannelNotify>();
+    packet->type = code;
+    packet->channelName = name;
+    m_session->SendPacket(std::move(packet));
+
     return true;
 }
 
@@ -1211,7 +1212,7 @@ bool ChatHandler::HandleDebugSetValueByNameCommand(char* args)
                 break;
             }
         }
-       
+
     }
     else
         SendSysMessage("Wrong field name.");
@@ -1404,12 +1405,12 @@ void ChatHandler::ShowUpdateFieldHelper(Object const* pTarget, uint16 index)
 bool ChatHandler::HandlerDebugModValueHelper(Object* target, uint32 field, char* typeStr, char* valStr)
 {
     ObjectGuid guid = target->GetObjectGuid();
-    char const* guidString = guid.GetString().c_str();
+    std::string const guidString = guid.GetString();
 
     // not allow access to nonexistent or critical for work field
     if (field >= target->GetValuesCount() || field <= OBJECT_FIELD_ENTRY)
     {
-        PSendSysMessage(LANG_TOO_BIG_INDEX, field, guidString, target->GetValuesCount());
+        PSendSysMessage(LANG_TOO_BIG_INDEX, field, guidString.c_str(), target->GetValuesCount());
         return false;
     }
 
@@ -1440,23 +1441,23 @@ bool ChatHandler::HandlerDebugModValueHelper(Object* target, uint32 field, char*
             default:
             case 1:                                         // int +
                 value = uint32(int32(value) + int32(iValue));
-                sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, GetMangosString(LANG_CHANGE_INT32), guidString, field, iValue, value, value);
-                PSendSysMessage(LANG_CHANGE_INT32_FIELD, guidString, field, iValue, value, value);
+                sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, GetMangosString(LANG_CHANGE_INT32), guidString.c_str(), field, iValue, value, value);
+                PSendSysMessage(LANG_CHANGE_INT32_FIELD, guidString.c_str(), field, iValue, value, value);
                 break;
             case 2:                                         // |= bit or
                 value |= iValue;
-                sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, GetMangosString(LANG_CHANGE_HEX), guidString, field, typeStr, iValue, value);
-                PSendSysMessage(LANG_CHANGE_HEX_FIELD, guidString, field, typeStr, iValue, value);
+                sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, GetMangosString(LANG_CHANGE_HEX), guidString.c_str(), field, typeStr, iValue, value);
+                PSendSysMessage(LANG_CHANGE_HEX_FIELD, guidString.c_str(), field, typeStr, iValue, value);
                 break;
             case 3:                                         // &= bit and
                 value &= iValue;
-                sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, GetMangosString(LANG_CHANGE_HEX), guidString, field, typeStr, iValue, value);
-                PSendSysMessage(LANG_CHANGE_HEX_FIELD, guidString, field, typeStr, iValue, value);
+                sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, GetMangosString(LANG_CHANGE_HEX), guidString.c_str(), field, typeStr, iValue, value);
+                PSendSysMessage(LANG_CHANGE_HEX_FIELD, guidString.c_str(), field, typeStr, iValue, value);
                 break;
             case 4:                                         // &=~ bit and not
                 value &= ~iValue;
-                sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, GetMangosString(LANG_CHANGE_HEX), guidString, field, typeStr, iValue, value);
-                PSendSysMessage(LANG_CHANGE_HEX_FIELD, guidString, field, typeStr, iValue, value);
+                sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, GetMangosString(LANG_CHANGE_HEX), guidString.c_str(), field, typeStr, iValue, value);
+                PSendSysMessage(LANG_CHANGE_HEX_FIELD, guidString.c_str(), field, typeStr, iValue, value);
                 break;
         }
 
@@ -1472,8 +1473,8 @@ bool ChatHandler::HandlerDebugModValueHelper(Object* target, uint32 field, char*
 
         value += fValue;
 
-        sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, GetMangosString(LANG_CHANGE_FLOAT), guidString, field, fValue, value);
-        PSendSysMessage(LANG_CHANGE_FLOAT_FIELD, guidString, field, fValue, value);
+        sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, GetMangosString(LANG_CHANGE_FLOAT), guidString.c_str(), field, fValue, value);
+        PSendSysMessage(LANG_CHANGE_FLOAT_FIELD, guidString.c_str(), field, fValue, value);
 
         target->SetFloatValue(field, value);
     }
@@ -1624,11 +1625,11 @@ bool ChatHandler::HandleDebugSpellModsCommand(char* args)
         chr->PSendSysMessage(LANG_YOURS_SPELLMODS_CHANGED, GetNameLink().c_str(),
                                          opcode == SMSG_SET_FLAT_SPELL_MODIFIER ? "flat" : "pct", spellmodop, value, effidx);
 
-    WorldPacket data(opcode, (1 + 1 + 2 + 2));
-    data << uint8(effidx);
-    data << uint8(spellmodop);
-    data << int32(value);
-    chr->GetSession()->SendPacket(&data);
+    auto packet = std::make_unique<WorldPackets::Spell::SetSpellModifier>(opcode);
+    packet->effectIndex = effidx;
+    packet->modOp = spellmodop;
+    packet->value = value;
+    chr->GetSession()->SendPacket(std::move(packet));
 
     return true;
 }
@@ -1734,10 +1735,10 @@ bool ChatHandler::HandleSendSpellVisualCommand(char *args)
     }
     PSendSysMessage("Spell %u visual on target '%s'.", uiPlayId, pTarget->GetName());
 
-    WorldPacket data(SMSG_PLAY_SPELL_VISUAL, 8 + 4);
-    data << uint64(m_session->GetPlayer()->GetGUID());
-    data << uint32(uiPlayId);                                // spell visual id?
-    pTarget->SendMessageToSet(&data, true);
+    auto packet = std::make_unique<WorldPackets::Spell::PlaySpellVisual>();
+    packet->casterGuid = m_session->GetPlayer()->GetObjectGuid();
+    packet->spellVisualId = uiPlayId;
+    pTarget->SendMessageToSet(std::move(packet), true);
     m_session->GetPlayer()->SendSpellGo(pTarget, uiPlayId);
 
     // Channeled case
@@ -1766,10 +1767,10 @@ bool ChatHandler::HandleSendSpellImpactCommand(char *args)
     PSendSysMessage("Spell %u impact on target '%s'.", uiPlayId, pTarget->GetName());
 
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_8_4
-    WorldPacket data(SMSG_PLAY_SPELL_IMPACT, 8 + 4);
-    data << uint64(pTarget->GetGUID());
-    data << uint32(uiPlayId);                                // spell visual id?
-    pTarget->SendMessageToSet(&data, true);
+    auto packet = std::make_unique<WorldPackets::Spell::PlaySpellImpact>();
+    packet->targetGuid = pTarget->GetObjectGuid();
+    packet->spellVisualId = uiPlayId;
+    pTarget->SendMessageToSet(std::move(packet), true);
 #endif
     return true;
 }
@@ -1862,7 +1863,7 @@ bool ChatHandler::HandleDebugLootTableCommand(char* args)
         Loot l(nullptr);
         if (lootOwner)
             l.SetTeam(lootOwner->GetTeam());
-        tab->Process(l, *store, store->IsRatesAllowed());
+        tab->Process(l, *store, lootOwner, store->IsRatesAllowed());
         for (const auto& item : l.items)
             if (!lootOwner || !item.conditionId)
                 lootChances[item.itemid]++;
@@ -2190,7 +2191,7 @@ bool ChatHandler::HandleDebugMonsterChatCommand(char* args)
     uint32 chatType;
     if (!ExtractUInt32(&args, chatType))
         return false;
-    
+
     std::ostringstream oss;
     oss << "Chat" << int(chatType);
     std::string rightText = oss.str();
@@ -2252,7 +2253,7 @@ bool ChatHandler::HandleDebugMonsterChatCommand(char* args)
     data << uint8(0);
     pTarget->SendMessageToSet(&data, true);
 #else // 1.11.2 client
-    
+
     if (chatType == 11 || chatType == 12 || chatType == 89 || chatType == 13 || chatType == 26)
     {
         data << uint32(strlen(pSender->GetName()) + 1);
@@ -2368,24 +2369,22 @@ bool ChatHandler::HandleDebugPvPCreditCommand(char *args)
     * uiGradeValue = Honor Rank of Victim
     If uiHonorValue=0 : "Dishonorable Kill"
     */
-    WorldPacket data(SMSG_PVP_CREDIT, 4 + 8 + 4);
-
+    auto packet = std::make_unique<WorldPackets::Misc::PvpCredit>();
     if (pSelection->GetTypeId() == TYPEID_PLAYER)
     {
         uint32 uiHonorValue = urand(1, 100);
-        data << uiHonorValue;
-        data << pSelection->GetGUID();
+        packet->honor = uiHonorValue;
         PSendSysMessage("Honorable Kill : Rank %3u and Honor %3u.", uiRankValue, uiHonorValue);
     }
-    else // Victoire deshonorante
+    else // Dishonorable kill
     {
-        data << uint32(0);
-        data << pSelection->GetGUID();
+        packet->honor = 0;
         PSendSysMessage("Dishonorable Kill.");
         uiRankValue = 0;
     }
-    data << uiRankValue;
-    m_session->SendPacket(&data);
+    packet->victimGuid = pSelection->GetObjectGuid();
+    packet->victimRank = uiRankValue;
+    m_session->SendPacket(std::move(packet));
 
     return true;
 }
@@ -2494,65 +2493,101 @@ bool ChatHandler::HandleMmap(char* args)
     return true;
 }
 
-bool ChatHandler::HandleMmapConnection(char* /*args*/)
+bool ChatHandler::HandleMmapConnection(char* args)
 {
-    static bool hasStartPoint = false;
-    static float startX = 0.0f, startY = 0.0f, startZ = 0.0f;
-    static uint32 startMapId = 0;
+    struct OffMeshStartPoint
+    {
+        uint32 mapId;
+        float x, y, z;
+    };
 
+    static std::map<ObjectGuid, OffMeshStartPoint> startPoints;
     Player* pPlayer = m_session->GetPlayer();
+    ObjectGuid const playerGuid = pPlayer->GetObjectGuid();
 
-    if (!hasStartPoint)
+    if (ExtractLiteralArg(&args, "cancel"))
+    {
+        if (startPoints.erase(playerGuid))
+            SendSysMessage("Offmesh start point discarded.");
+        else
+            SendSysMessage("No offmesh start point recorded.");
+        return true;
+    }
+
+    std::map<ObjectGuid, OffMeshStartPoint>::iterator itr = startPoints.find(playerGuid);
+    if (itr == startPoints.end())
     {
         // First call: record start position
-        pPlayer->GetPosition(startX, startY, startZ);
-        startMapId = pPlayer->GetMapId();
-        hasStartPoint = true;
-        PSendSysMessage("Start point recorded at (%.2f, %.2f, %.2f). Move to end point and run command again.", startX, startY, startZ);
+        OffMeshStartPoint start;
+        start.mapId = pPlayer->GetMapId();
+        pPlayer->GetPosition(start.x, start.y, start.z);
+        startPoints[playerGuid] = start;
+        PSendSysMessage("Start point recorded at (%.2f, %.2f, %.2f).", start.x, start.y, start.z);
+        SendSysMessage("Move to the end point and run the command again (optional argument: agent radius, default 2.5).");
+        SendSysMessage("Use '.mmap connect cancel' to discard the start point.");
+        return true;
+    }
+
+    // Second call: record end position and write connection
+    if (pPlayer->GetMapId() != itr->second.mapId)
+    {
+        SendSysMessage("Error: You changed maps! Connection cancelled. Start again.");
+        startPoints.erase(itr);
+        return true;
+    }
+
+    // parse the radius before consuming the start point, so a bad argument does not discard it
+    float radius;
+    if (!ExtractOptFloat(&args, radius, 2.5f) || radius <= 0.0f)
+    {
+        SendSysMessage("Invalid radius argument. Start point kept - run the command again.");
+        return true;
+    }
+
+    OffMeshStartPoint const start = itr->second;
+    startPoints.erase(itr);
+
+    float endX, endY, endZ;
+    pPlayer->GetPosition(endX, endY, endZ);
+
+    // Detour only stores a connection whose START point lies inside the tile, so
+    // the tile must be derived from the start position. Axes are switched: the
+    // offmesh.txt tile convention is tileX from world Y, tileY from world X.
+    int32 tileX = int32(32 - start.y / SIZE_OF_GRIDS);
+    int32 tileY = int32(32 - start.x / SIZE_OF_GRIDS);
+
+    float const dist = sqrt(pow(endX - start.x, 2) + pow(endY - start.y, 2) + pow(endZ - start.z, 2));
+    if (dist > 100.0f)
+        PSendSysMessage("Warning: connection is %.0f yd long - did you forget an earlier start point? Check the output before using it.", dist);
+
+    int32 endTileX = int32(32 - endY / SIZE_OF_GRIDS);
+    int32 endTileY = int32(32 - endX / SIZE_OF_GRIDS);
+    if (endTileX != tileX || endTileY != tileY)
+        PSendSysMessage("Note: end point lies in neighboring tile [%d,%d] - this works, the connection is stored in the start point's tile.", endTileX, endTileY);
+
+    // Format: mapID tileX,tileY (start_x start_y start_z) (end_x end_y end_z) size
+    PSendSysMessage("Offmesh connection recorded:");
+    PSendSysMessage("%u %d,%d (%.6f %.6f %.6f) (%.6f %.6f %.6f) %.2f",
+                    start.mapId, tileX, tileY,
+                    start.x, start.y, start.z,
+                    endX, endY, endZ, radius);
+    PSendSysMessage("Copy the line into offmesh.txt, then rebuild: MoveMapGenerator %u --tile %d,%d --threads 1 --silent", start.mapId, tileX, tileY);
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Copy the line into offmesh.txt, then rebuild: MoveMapGenerator %u --tile %d,%d --threads 1 --silent", start.mapId, tileX, tileY);
+
+    // Write to file
+    FILE* file = fopen("offmesh_connections.txt", "a");
+    if (file)
+    {
+        fprintf(file, "%u %d,%d (%.6f %.6f %.6f) (%.6f %.6f %.6f) %.2f\n",
+                start.mapId, tileX, tileY,
+                start.x, start.y, start.z,
+                endX, endY, endZ, radius);
+        fclose(file);
+        SendSysMessage("Written to offmesh_connections.txt");
     }
     else
     {
-        // Second call: record end position and write connection
-        if (pPlayer->GetMapId() != startMapId)
-        {
-            SendSysMessage("Error: You changed maps! Connection cancelled. Start again.");
-            hasStartPoint = false;
-            startX = startY = startZ = 0.0f;
-            return true;
-        }
-
-        // Switched x/y
-        int32 tileY = 32 - pPlayer->GetPositionX() / SIZE_OF_GRIDS;
-        int32 tileX = 32 - pPlayer->GetPositionY() / SIZE_OF_GRIDS;
-
-        // Format: mapID tileX,tileY (start_x start_y start_z) (end_x end_y end_z) size
-        PSendSysMessage("Offmesh connection recorded:");
-        PSendSysMessage("%u %d,%d (%.6f %.6f %.6f) (%.6f %.6f %.6f) 2.5",
-                        pPlayer->GetMapId(), tileX, tileY,
-                        startX, startY, startZ,
-                        pPlayer->GetPositionX(), pPlayer->GetPositionY(), pPlayer->GetPositionZ());
-        PSendSysMessage("Rebuild with: MoveMapGenerator %u --tile %d,%d", pPlayer->GetMapId(), tileX, tileY);
-        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Rebuild with: MoveMapGenerator %u --tile %d,%d", pPlayer->GetMapId(), tileX, tileY);
-
-        // Write to file
-        FILE* file = fopen("offmesh_connections.txt", "a");
-        if (file)
-        {
-            fprintf(file, "%u %d,%d (%.6f %.6f %.6f) (%.6f %.6f %.6f) 2.5\n",
-                    pPlayer->GetMapId(), tileX, tileY,
-                    startX, startY, startZ,
-                    pPlayer->GetPositionX(), pPlayer->GetPositionY(), pPlayer->GetPositionZ());
-            fclose(file);
-            SendSysMessage("Written to offmesh_connections.txt");
-        }
-        else
-        {
-            SendSysMessage("Warning: Could not write to offmesh_connections.txt");
-        }
-
-        // Reset state
-        hasStartPoint = false;
-        startX = startY = startZ = 0.0f;
+        SendSysMessage("Warning: Could not write to offmesh_connections.txt");
     }
 
     return true;

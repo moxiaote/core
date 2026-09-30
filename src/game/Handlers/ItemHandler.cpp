@@ -175,21 +175,22 @@ void WorldSession::HandleAutoEquipItemOpcode(WorldPackets::Item::AutoEquipItem c
         // check dest->src move possibility
         ItemPosCountVec sSrc;
         uint16 eSrc = 0;
+        uint8 bagSlot = 0;
         if (_player->IsInventoryPos(src))
         {
-            msg = _player->CanStoreItem(packet.srcbag, packet.srcslot, sSrc, pDstItem, true);
+            msg = _player->CanStoreItem(packet.srcbag, packet.srcslot, sSrc, pDstItem, bagSlot, true);
             if (msg != EQUIP_ERR_OK)
-                msg = _player->CanStoreItem(packet.srcbag, NULL_SLOT, sSrc, pDstItem, true);
+                msg = _player->CanStoreItem(packet.srcbag, NULL_SLOT, sSrc, pDstItem, bagSlot, true);
             if (msg != EQUIP_ERR_OK)
-                msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, sSrc, pDstItem, true);
+                msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, sSrc, pDstItem, bagSlot, true);
         }
         else if (_player->IsBankPos(src))
         {
-            msg = _player->CanBankItem(packet.srcbag, packet.srcslot, sSrc, pDstItem, true);
+            msg = _player->CanBankItem(packet.srcbag, packet.srcslot, sSrc, pDstItem, true, bagSlot);
             if (msg != EQUIP_ERR_OK)
-                msg = _player->CanBankItem(packet.srcbag, NULL_SLOT, sSrc, pDstItem, true);
+                msg = _player->CanBankItem(packet.srcbag, NULL_SLOT, sSrc, pDstItem, true, bagSlot);
             if (msg != EQUIP_ERR_OK)
-                msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, sSrc, pDstItem, true);
+                msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, sSrc, pDstItem, true, bagSlot);
         }
         else if (_player->IsEquipmentPos(src))
         {
@@ -200,7 +201,7 @@ void WorldSession::HandleAutoEquipItemOpcode(WorldPackets::Item::AutoEquipItem c
 
         if (msg != EQUIP_ERR_OK)
         {
-            _player->SendEquipError(msg, pDstItem, pSrcItem);
+            _player->SendEquipError(msg, pDstItem, pSrcItem, bagSlot);
             return;
         }
 
@@ -419,33 +420,23 @@ void WorldSession::HandleReadItemOpcode(WorldPackets::Item::ReadItem const& pack
 
     if (pItem && pItem->GetProto()->PageText)
     {
-        WorldPacket data;
-
         InventoryResult msg = _player->CanUseItem(pItem);
         if (msg == EQUIP_ERR_OK)
         {
-            data.Initialize(SMSG_READ_ITEM_OK, 8);
-            data << ObjectGuid(pItem->GetObjectGuid());
+            auto readOk = std::make_unique<WorldPackets::Item::ReadItemOk>();
+            readOk->itemGuid = pItem->GetObjectGuid();
+            SendPacket(std::move(readOk));
         }
         else
         {
-            data.Initialize(SMSG_READ_ITEM_FAILED, 8 + 1);
-            data << ObjectGuid(pItem->GetObjectGuid());
-            data << uint8(0);                       // 0..2, read failure reason? if == 1, use next command
+            auto readFailed = std::make_unique<WorldPackets::Item::ReadItemFailed>();
+            readFailed->itemGuid = pItem->GetObjectGuid();
+            SendPacket(std::move(readFailed));
             _player->SendEquipError(msg, pItem, nullptr);
         }
-        data << ObjectGuid(pItem->GetObjectGuid());
-        SendPacket(&data);
     }
     else
         _player->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, nullptr, nullptr);
-}
-
-void WorldSession::HandlePageQuerySkippedOpcode(WorldPacket& recv_data)
-{
-    uint32 itemid;
-    ObjectGuid guid;
-    recv_data >> itemid >> guid;
 }
 
 void WorldSession::HandleSellItemOpcode(WorldPackets::Item::SellItem const& packet)
@@ -651,10 +642,11 @@ void WorldSession::HandleBuybackItem(WorldPackets::Item::BuybackItem const& pack
     }
 
     ItemPosCountVec dest;
-    InventoryResult msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, dest, pItem, false);
+    uint8 bagSlot = 0;
+    InventoryResult msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, dest, pItem, bagSlot, false);
     if (msg != EQUIP_ERR_OK)
     {
-        _player->SendEquipError(msg, pItem, nullptr);
+        _player->SendEquipError(msg, pItem, nullptr, bagSlot);
         return;
     }
 
@@ -762,35 +754,8 @@ void WorldSession::SendListInventory(ObjectGuid vendorguid, uint8 menu_type)
         {
             if (ItemPrototype const* pProto = sObjectMgr.GetItemPrototype(crItem->item))
             {
-                if (!_player->IsGameMaster())
-                {
-                    // class wrong item skip only for bindable case
-                    if ((pProto->AllowableClass & _player->GetClassMask()) == 0 && pProto->Bonding == BIND_WHEN_PICKED_UP)
-                        continue;
-
-                    // race wrong item skip always
-                    if ((pProto->AllowableRace & _player->GetRaceMask()) == 0)
-                        continue;
-
-                    // when no faction required but rank > 0 will be used faction id from the vendor faction template to compare the rank
-                    if (!pProto->RequiredReputationFaction && pProto->RequiredReputationRank > 0 &&
-                        ReputationRank(pProto->RequiredReputationRank) > _player->GetReputationRank(pCreature->GetFactionId()))
-                        continue;
-
-                    // World of Warcraft Client Patch 1.7.0 (2005-09-13)
-                    // - Argent Dawn, Timbermaw, Zandalar and Arathi Basin vendors now show
-                    //   you their entire inventory regardless of current reputation, allowing
-                    //   players to peruse their full range of wares.The items in question
-                    //   now require the appropriate reputation level to make use of them.
-#if SUPPORTED_CLIENT_BUILD <= CLIENT_BUILD_1_6_1
-                    if (pProto->RequiredReputationFaction && pProto->RequiredReputationRank > 0 &&
-                        ReputationRank(pProto->RequiredReputationRank) > _player->GetReputationRank(pProto->RequiredReputationFaction))
-                        continue;
-#endif
-
-                    if (crItem->conditionId && !IsConditionSatisfied(crItem->conditionId, _player, pCreature->GetMap(), pCreature, CONDITION_FROM_VENDOR))
-                        continue;
-                }
+                if (!_player->IsVendorItemVisible(pCreature, crItem, pProto))
+                    continue;
 
                 ++count;
 
@@ -858,10 +823,11 @@ void WorldSession::HandleAutoStoreBagItemOpcode(WorldPackets::Item::AutoStoreBag
     }
 
     ItemPosCountVec dest;
-    InventoryResult msg = _player->CanStoreItem(packet.dstbag, NULL_SLOT, dest, pItem, false);
+    uint8 bagSlot = 0;
+    InventoryResult msg = _player->CanStoreItem(packet.dstbag, NULL_SLOT, dest, pItem, bagSlot, false);
     if (msg != EQUIP_ERR_OK)
     {
-        _player->SendEquipError(msg, pItem, nullptr);
+        _player->SendEquipError(msg, pItem, nullptr, bagSlot);
         return;
     }
 
@@ -905,12 +871,11 @@ bool WorldSession::CheckBanker(ObjectGuid guid)
 
 void WorldSession::HandleBuyBankSlotOpcode(WorldPackets::Item::BuyBankSlot const& packet)
 {
-    WorldPacket data(SMSG_BUY_BANK_SLOT_RESULT, 4);
-
     if (!CheckBanker(packet.guid))
     {
-        data << uint32(ERR_BANKSLOT_NOTBANKER);
-        SendPacket(&data);
+        auto bankPacket = std::make_unique<WorldPackets::Item::BuyBankSlotResult>();
+        bankPacket->result = ERR_BANKSLOT_NOTBANKER;
+        SendPacket(std::move(bankPacket));
         return;
     }
 
@@ -923,8 +888,9 @@ void WorldSession::HandleBuyBankSlotOpcode(WorldPackets::Item::BuyBankSlot const
 
     if (!slotEntry)
     {
-        data << uint32(ERR_BANKSLOT_FAILED_TOO_MANY);
-        SendPacket(&data);
+        auto bankPacket = std::make_unique<WorldPackets::Item::BuyBankSlotResult>();
+        bankPacket->result = ERR_BANKSLOT_FAILED_TOO_MANY;
+        SendPacket(std::move(bankPacket));
         return;
     }
 
@@ -932,8 +898,9 @@ void WorldSession::HandleBuyBankSlotOpcode(WorldPackets::Item::BuyBankSlot const
 
     if (_player->GetMoney() < price)
     {
-        data << uint32(ERR_BANKSLOT_INSUFFICIENT_FUNDS);
-        SendPacket(&data);
+        auto bankPacket = std::make_unique<WorldPackets::Item::BuyBankSlotResult>();
+        bankPacket->result = ERR_BANKSLOT_INSUFFICIENT_FUNDS;
+        SendPacket(std::move(bankPacket));
         return;
     }
 
@@ -954,10 +921,11 @@ void WorldSession::HandleAutoBankItemOpcode(WorldPackets::Item::AutoBankItem con
     }
 
     ItemPosCountVec dest;
-    InventoryResult msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, dest, pItem, false);
+    uint8 bagSlot = 0;
+    InventoryResult msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, dest, pItem, false, bagSlot);
     if (msg != EQUIP_ERR_OK)
     {
-        _player->SendEquipError(msg, pItem, nullptr);
+        _player->SendEquipError(msg, pItem, nullptr, bagSlot);
         return;
     }
 
@@ -988,10 +956,11 @@ void WorldSession::HandleAutoStoreBankItemOpcode(WorldPackets::Item::AutoStoreBa
     if (_player->IsBankPos(packet.srcbag, packet.srcslot))  // moving from bank to inventory
     {
         ItemPosCountVec dest;
-        InventoryResult msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, dest, pItem, false);
+        uint8 bagSlot = 0;
+        InventoryResult msg = _player->CanStoreItem(NULL_BAG, NULL_SLOT, dest, pItem, bagSlot, false);
         if (msg != EQUIP_ERR_OK)
         {
-            _player->SendEquipError(msg, pItem, nullptr);
+            _player->SendEquipError(msg, pItem, nullptr, bagSlot);
             return;
         }
 
@@ -1003,10 +972,11 @@ void WorldSession::HandleAutoStoreBankItemOpcode(WorldPackets::Item::AutoStoreBa
     else                                                    // moving from inventory to bank
     {
         ItemPosCountVec dest;
-        InventoryResult msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, dest, pItem, false);
+        uint8 bagSlot = 0;
+        InventoryResult msg = _player->CanBankItem(NULL_BAG, NULL_SLOT, dest, pItem, false, bagSlot);
         if (msg != EQUIP_ERR_OK)
         {
-            _player->SendEquipError(msg, pItem, nullptr);
+            _player->SendEquipError(msg, pItem, nullptr, bagSlot);
             return;
         }
 
@@ -1039,14 +1009,14 @@ void WorldSession::HandleSetAmmoOpcode(WorldPackets::Item::SetAmmo const& packet
 
 void WorldSession::SendItemEnchantTimeUpdate(ObjectGuid playerGuid, ObjectGuid itemGuid, uint32 slot, uint32 duration)
 {
-    WorldPacket data(SMSG_ITEM_ENCHANT_TIME_UPDATE, (8 + 4 + 4 + 8));
-    data << ObjectGuid(itemGuid);
-    data << uint32(slot);
-    data << uint32(duration);
+    auto enchantUpdate = std::make_unique<WorldPackets::Item::ItemEnchantTimeUpdate>();
+    enchantUpdate->itemGuid = itemGuid;
+    enchantUpdate->slot = slot;
+    enchantUpdate->duration = duration;
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_10_2
-    data << ObjectGuid(playerGuid);
+    enchantUpdate->playerGuid = playerGuid;
 #endif
-    SendPacket(&data);
+    SendPacket(std::move(enchantUpdate));
 }
 
 void WorldSession::HandleItemNameQueryOpcode(WorldPackets::Query::ItemNameQuery const& packet)
@@ -1067,13 +1037,11 @@ void WorldSession::HandleItemNameQueryOpcode(WorldPackets::Query::ItemNameQuery 
             }
         }
 
-        size_t const nameLen = strlen(name) + 1;
-
-        WorldPacket data(SMSG_ITEM_NAME_QUERY_RESPONSE, (4 + nameLen));
-        data << uint32(pProto->ItemId);
-        data.append(name, nameLen);
+        auto namePacket = std::make_unique<WorldPackets::Item::ItemNameQueryResponse>();
+        namePacket->itemId = pProto->ItemId;
+        namePacket->name = name;
         //data << uint32(pProto->InventoryType);    [-ZERO]
-        SendPacket(&data);
+        SendPacket(std::move(namePacket));
         return;
     }
 }

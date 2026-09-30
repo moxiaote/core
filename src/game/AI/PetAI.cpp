@@ -30,6 +30,7 @@
 #include "Group.h"
 #include "SpellAuraDefines.h"
 #include "Map.h"
+#include "Utilities/Random.h"
 
 int PetAI::Permissible(Creature const* creature)
 {
@@ -216,7 +217,7 @@ void PetAI::UpdateAI(uint32 const diff)
                 continue;
 
             // check spell cooldown
-            if (!m_creature->IsSpellReady(spellInfo->Id))
+            if (!m_creature->IsSpellReady(spellInfo))
                 continue;
 
             if (spellInfo->IsPositiveSpell())
@@ -370,12 +371,16 @@ void PetAI::UpdateAllies()
         return;
 
     //owner is in group; group members filled in already (no raid -> subgroupcount = whole count)
-    if (group && !group->isRaidGroup() && m_AllySet.size() == (group->GetMembersCount() + 2))
+    if (group && !group->isRaidGroup() && m_AllySet.size() == (group->GetMembersCount() + 1))
         return;
 
+    // Cache potential friendly targets here. Charmed owner/group members are
+    // filtered later by spell target validation before the pet actually casts.
     m_AllySet.clear();
     m_AllySet.insert(m_creature->GetObjectGuid());
-    if (group)                                             //add group
+    m_AllySet.insert(owner->GetObjectGuid()); // The pet owner must always be included.
+
+    if (group)
     {
         for (GroupReference* itr = group->GetFirstMember(); itr != nullptr; itr = itr->next())
         {
@@ -389,8 +394,6 @@ void PetAI::UpdateAllies()
             m_AllySet.insert(target->GetObjectGuid());
         }
     }
-    else                                                    //remove group
-        m_AllySet.insert(owner->GetObjectGuid());
 }
 
 void PetAI::KilledUnit(Unit* victim)
@@ -527,7 +530,7 @@ std::pair<Unit*, ePetSelectTargetReason> PetAI::SelectNextTarget() const
     Unit* owner = m_creature->GetCharmerOrOwner();
     if (!owner)
         return std::make_pair(nullptr, PSTR_FAIL_NO_OWNER);
-    
+
     if (Creature const* pOwnerCreature = owner->ToCreature())
     {
         // Owner is creature and is evading. We must not re-aggro.
@@ -556,7 +559,7 @@ std::pair<Unit*, ePetSelectTargetReason> PetAI::SelectNextTarget() const
     {
         if (Unit* pVictim = owner->GetVictim())
         {
-            if (!pVictim->HasAuraPetShouldAvoidBreaking() && 
+            if (!pVictim->HasAuraPetShouldAvoidBreaking() &&
                (!m_creature->GetCharmInfo()->IsAtStay() || m_creature->CanReachWithMeleeAutoAttack(pVictim)))
                 return std::make_pair(pVictim, PSTR_SUCCESS_OWNER_VICTIM);
         }
@@ -606,8 +609,7 @@ void PetAI::HandleReturnMovement()
             ClearCharmInfoFlags();
             m_creature->GetCharmInfo()->SetIsReturning(true);
             m_creature->GetMotionMaster()->Clear(false);
-            m_creature->GetMotionMaster()->MoveFollow(m_creature->GetCharmerOrOwner(), PET_FOLLOW_DIST,
-                                                      m_creature->IsPet() ? static_cast<Pet*>(m_creature)->GetFollowAngle() : PET_FOLLOW_ANGLE);
+            m_creature->GetMotionMaster()->MoveFollow(m_creature->GetCharmerOrOwner(), PET_FOLLOW_DIST, m_creature->GetFollowAngle());
         }
     }
 }
@@ -626,22 +628,22 @@ void PetAI::DoAttack(Unit* target, bool chase)
         if ((m_creature->GetEntry() == 416 || m_creature->GetEntry() == 12922) && !m_creature->IsInCombat() && roll_chance_u(5))
             DoScriptText(PickRandomValue(746, 747, 749, 750, 751, 752, 753, 754), m_creature, target);
         // Bane pets have a small chance to say one of these texts on aggro.
-        else if ((m_creature->GetEntry() == 200015) && !m_creature->IsInCombat() && roll_chance_u(10))
+        else if ((m_creature->GetEntry() == 200015) && !m_creature->IsInCombat() && roll_chance_u(5))
             DoScriptText(PickRandomValue(1000004, 1000005, 1000006, 1000007, 1000008, 1000009), m_creature, target);
         // Goblin Shredder pets have a small chance to say one of these texts on aggro.
-        else if ((m_creature->GetEntry() == 200013) && !m_creature->IsInCombat() && roll_chance_u(10))
+        else if ((m_creature->GetEntry() == 200013) && !m_creature->IsInCombat() && roll_chance_u(5))
             DoScriptText(PickRandomValue(1000010, 1000011, 1000012, 1000013, 1000014, 1000015), m_creature, target);
         // Obsidian Destroyer pets have a small chance to say one of these texts on aggro.
-        else if ((m_creature->GetEntry() == 200012) && !m_creature->IsInCombat() && roll_chance_u(10))
+        else if ((m_creature->GetEntry() == 200012) && !m_creature->IsInCombat() && roll_chance_u(5))
             DoScriptText(PickRandomValue(1000016, 1000017, 1000018, 1000019, 1000020, 1000021), m_creature, target);
         // Bone Clinkz pets have a small chance to say one of these texts on aggro.
-        else if ((m_creature->GetEntry() == 200014) && !m_creature->IsInCombat() && roll_chance_u(10))
+        else if ((m_creature->GetEntry() == 200014) && !m_creature->IsInCombat() && roll_chance_u(5))
             DoScriptText(PickRandomValue(1000022, 1000023, 1000024, 1000025, 1000026, 1000027), m_creature, target);
         // Sven pets have a small chance to say one of these texts on aggro.
-        else if ((m_creature->GetEntry() == 200010) && !m_creature->IsInCombat() && roll_chance_u(10))
+        else if ((m_creature->GetEntry() == 200010) && !m_creature->IsInCombat() && roll_chance_u(5))
             DoScriptText(PickRandomValue(1000028, 1000029, 1000030, 1000031, 1000032, 1000033), m_creature, target);
         // Morphling pets have a small chance to say one of these texts on aggro.
-        else if ((m_creature->GetEntry() == 200009) && !m_creature->IsInCombat() && roll_chance_u(10))
+        else if ((m_creature->GetEntry() == 200009) && !m_creature->IsInCombat() && roll_chance_u(5))
             DoScriptText(PickRandomValue(1000034, 1000035, 1000036, 1000037, 1000038, 1000039), m_creature, target);
 
         if (chase)
@@ -749,7 +751,7 @@ bool PetAI::CanAttack(Unit* target)
     // CC - mobs under crowd control can be attacked if owner commanded
     if (target->HasAuraPetShouldAvoidBreaking())
         return m_creature->GetCharmInfo()->IsCommandAttack();
-        
+
     // Returning - pets ignore attacks only if owner clicked follow
     if (m_creature->GetCharmInfo()->IsReturning())
         return !m_creature->GetCharmInfo()->IsCommandFollow();
@@ -823,4 +825,3 @@ void PetAI::AttackedBy(Unit* attacker)
     // Continue to evaluate and attack if necessary
     AttackStart(attacker);
 }
-

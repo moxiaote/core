@@ -30,6 +30,7 @@
 #include "GuardMgr.h"
 #include "Conditions.h"
 #include "Map.h"
+#include "Utilities/Random.h"
 
 bool CreatureEventAIHolder::UpdateRepeatTimer(Creature* creature, uint32 repeatMin, uint32 repeatMax)
 {
@@ -82,7 +83,7 @@ CreatureEventAI::CreatureEventAI(Creature* c) : BasicAI(c)
             m_CreatureEventAIList.emplace_back(i);
         }
     }
-    else
+    else if (!c->IsPet())
         sLog.Out(LOG_SCRIPTS, LOG_LVL_ERROR, "CreatureEventAI: EventMap for Creature %u is empty but creature is using CreatureEventAI.", m_creature->GetEntry());
 
     m_bEmptyList = m_CreatureEventAIList.empty();
@@ -878,7 +879,7 @@ void CreatureEventAI::GroupMemberJustDied(Creature* pUnit, bool isLeader)
 
             if (((bool)i.Event.group_member_died.isLeader) == isLeader)
                 ProcessEvent(i, pUnit);
-        } 
+        }
     }
 }
 

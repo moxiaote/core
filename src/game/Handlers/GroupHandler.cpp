@@ -29,6 +29,7 @@
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "Group.h"
+#include "Utilities/Random.h"
 #include "SocialMgr.h"
 #include "Util.h"
 
@@ -43,14 +44,13 @@
     -FIX sending PartyMemberStats
 */
 
-void WorldSession::SendPartyResult(PartyOperation operation, std::string const& member, PartyResult res)
+void WorldSession::SendPartyResult(PartyOperation operation, std::string const& memberName, PartyResult res)
 {
-    WorldPacket data(SMSG_PARTY_COMMAND_RESULT, (4 + member.size() + 1 + 4));
-    data << uint32(operation);
-    data << member; // max len 48
-    data << uint32(res);
-
-    SendPacket(&data);
+    auto packet = std::make_unique<WorldPackets::Group::PartyCommandResult>();
+    packet->operation = operation;
+    packet->memberName = memberName;
+    packet->result = res;
+    SendPacket(std::move(packet));
 }
 
 void WorldSession::HandleGroupInviteOpcode(WorldPackets::Group::GroupInvite const& packet)
@@ -157,15 +157,22 @@ void WorldSession::HandleGroupInviteOpcode(WorldPackets::Group::GroupInvite cons
     }
 
     // ok, we do it
-    WorldPacket data(SMSG_GROUP_INVITE, 10); // guess size
-    data << GetPlayer()->GetName();
-    player->GetSession()->SendPacket(&data);
+    auto invitePacket = std::make_unique<WorldPackets::Group::GroupInviteNotification>();
+    invitePacket->inviterName = GetPlayer()->GetName();
+    player->GetSession()->SendPacket(std::move(invitePacket));
 
     SendPartyResult(PARTY_OP_INVITE, packet.memberName, ERR_PARTY_RESULT_OK);
 }
 
 void WorldSession::HandleGroupAcceptOpcode(NullClientPacket const& /*packet*/)
 {
+    // Hardcore Challenger Can Not Accept
+    if (sWorld.getConfig(CONFIG_HARDCORECHALLENGER_BAN_INVITE) == 1 && GetPlayer()->GetLevel()<60 && GetPlayer()->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+    {
+        SendPartyResult(PARTY_OP_INVITE, "", ERR_GROUP_FULL);
+        return;
+    }
+
     Group* group = GetPlayer()->GetGroupInvite();
     if (!group)
         return;
@@ -191,6 +198,13 @@ void WorldSession::HandleGroupAcceptOpcode(NullClientPacket const& /*packet*/)
     }
 
     Player* leader = sObjectMgr.GetPlayer(group->GetLeaderGuid());
+
+    // Hardcore Challenger Can Not Be Accepted
+    if (sWorld.getConfig(CONFIG_HARDCORECHALLENGER_BAN_INVITE) == 1 && leader->GetLevel()<60 && leader->GetQuestStatus(10000) == QUEST_STATUS_COMPLETE)
+    {
+        SendPartyResult(PARTY_OP_INVITE, "", ERR_GROUP_FULL);
+        return;
+    }
 
     // forming a new group, create it
     if (!group->IsCreated())
@@ -225,9 +239,9 @@ void WorldSession::HandleGroupDeclineOpcode(NullClientPacket const& /*packet*/)
         return;
 
     // report
-    WorldPacket data(SMSG_GROUP_DECLINE, 10); // guess size
-    data << GetPlayer()->GetName();
-    leader->GetSession()->SendPacket(&data);
+    auto declinePacket = std::make_unique<WorldPackets::Group::GroupDeclineNotification>();
+    declinePacket->playerName = GetPlayer()->GetName();
+    leader->GetSession()->SendPacket(std::move(declinePacket));
 }
 
 void WorldSession::HandleGroupUninviteGuidOpcode(WorldPackets::Group::GroupUninviteGuid const& packet)
@@ -360,11 +374,20 @@ void WorldSession::HandleLootMethodOpcode(WorldPackets::Group::LootMethod const&
     if (!group)
         return;
 
-    /** error handling **/
     if (!group->IsLeader(GetPlayer()->GetObjectGuid()))
         return;
-    /********************/
 
+    if (packet.lootMethod == MASTER_LOOT)
+    {
+        if (!group->IsMember(packet.lootMaster))
+            return;
+    }
+    else
+    {
+        // cannot have loot master in other loot methods
+        const_cast<ObjectGuid&>(packet.lootMaster).Clear();
+    }
+    
     // everything is fine, do it
     group->SetLootMethod((LootMethod)packet.lootMethod);
     group->SetLooterGuid(packet.lootMaster);
@@ -408,7 +431,7 @@ void WorldSession::HandleMinimapPingOpcode(WorldPackets::Group::MinimapPing cons
 void WorldSession::HandleRandomRollOpcode(WorldPackets::Group::RandomRoll const& packet)
 {
     /** error handling **/
-    if (packet.minimum > packet.maximum || packet.maximum > 10000) // < 32768 for urand call
+    if (packet.minimum > packet.maximum || packet.maximum > 1000000)
         return;
     /********************/
 
@@ -564,7 +587,7 @@ void WorldSession::HandleGroupAssistantLeaderOpcode(WorldPackets::Group::GroupAs
 }
 
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_10_2
-void WorldSession::HandleRaidReadyCheckOpcode(WorldPackets::Group::RaidReadyCheck const& packet)
+void WorldSession::HandleRaidReadyCheckOpcode(WorldPackets::Group::RaidReadyCheckFromClient const& packet)
 {
     if (!packet.state.has_value()) // request
     {
@@ -579,8 +602,7 @@ void WorldSession::HandleRaidReadyCheckOpcode(WorldPackets::Group::RaidReadyChec
         /********************/
 
         // everything is fine, do it
-        WorldPacket data(MSG_RAID_READY_CHECK, 0);
-        group->BroadcastPacket(&data, false, -1);
+        group->BroadcastPacket(std::make_unique<WorldPackets::Group::RaidReadyCheckFromServer_Request>(), false, -1);
 
         group->OfflineReadyCheck();
     }
@@ -593,10 +615,10 @@ void WorldSession::HandleRaidReadyCheckOpcode(WorldPackets::Group::RaidReadyChec
         // Forward to the raid leader
         if (Player* gleader = sObjectMgr.GetPlayer(group->GetLeaderGuid()))
         {
-            WorldPacket data(MSG_RAID_READY_CHECK, 9);
-            data << GetPlayer()->GetObjectGuid();
-            data << uint8(packet.state.value());
-            gleader->GetSession()->SendPacket(&data);
+            auto response = std::make_unique<WorldPackets::Group::RaidReadyCheckFromServer_Response>();
+            response->senderGuid = GetPlayer()->GetObjectGuid();
+            response->state = packet.state.value();
+            gleader->GetSession()->SendPacket(std::move(response));
         }
     }
 }
@@ -780,6 +802,7 @@ void WorldSession::BuildPartyMemberStatsChangedPacket(Player* player, WorldPacke
 }
 
 /*this procedure handles clients CMSG_REQUEST_PARTY_MEMBER_STATS request*/
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_4_2
 void WorldSession::HandleRequestPartyMemberStatsOpcode(WorldPackets::Group::RequestPartyMemberStats const& packet)
 {
     Player* player = HashMapHolder<Player>::Find(packet.guid);
@@ -810,6 +833,7 @@ void WorldSession::HandleRequestPartyMemberStatsOpcode(WorldPackets::Group::Requ
     BuildPartyMemberStatsPacket(player, &data, GROUP_UPDATE_FULL, true);
     SendPacket(&data);
 }
+#endif
 
 void WorldSession::HandleRequestRaidInfoOpcode(NullClientPacket const& /*packet*/)
 {

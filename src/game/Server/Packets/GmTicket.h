@@ -51,6 +51,67 @@ namespace WorldPackets { namespace GmTicket
     };
 #endif
 
+    // --- Server Packets ---
+
+    class GmTicketUpdateTextResponse final : public ServerPacket
+    {
+    public:
+        uint32 response = 0;
+
+        explicit GmTicketUpdateTextResponse() : ServerPacket(SMSG_GMTICKET_UPDATETEXT) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
+    class GmTicketDeleteTicketResponse final : public ServerPacket
+    {
+    public:
+        uint32 response = 0;
+
+        explicit GmTicketDeleteTicketResponse() : ServerPacket(SMSG_GMTICKET_DELETETICKET) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
+    class GmTicketCreateResponse final : public ServerPacket
+    {
+    public:
+        uint32 response = 0;
+
+        explicit GmTicketCreateResponse() : ServerPacket(SMSG_GMTICKET_CREATE) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
+    class GmTicketSystemStatus final : public ServerPacket
+    {
+    public:
+        uint32 status = 0;
+
+        explicit GmTicketSystemStatus() : ServerPacket(SMSG_GMTICKET_SYSTEMSTATUS) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
+    class GmTicketGetTicket final : public ServerPacket
+    {
+    public:
+        uint32 status = 0;         // GMTICKET_STATUS_HASTEXT (0x06) or GMTICKET_STATUS_DEFAULT (0x0A)
+
+        // following fields are only serialized when status == GMTICKET_STATUS_HASTEXT (0x06)
+        std::string message;
+        uint8 ticketType = 0;
+        float lastModifiedAge = 0.0f;
+        float oldestTicketAge = 0.0f;
+        float estimatedWaitTime = 0.0f; // Estimated wait time ?
+        uint8 escalationStatus = 0;     // escalated data
+        uint8 openedByGMStatus = 0;     // whether or not it has been viewed
+
+        explicit GmTicketGetTicket() : ServerPacket(SMSG_GMTICKET_GETTICKET) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
 }} // namespace WorldPackets::GmTicket
 
 #endif // MANGOS_PACKETS_GMTICKET_H

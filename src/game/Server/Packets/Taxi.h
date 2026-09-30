@@ -48,6 +48,49 @@ namespace WorldPackets { namespace Taxi
     };
 #endif
 
+    // --- Server Packets ---
+
+    class TaxiNodeStatus final : public ServerPacket
+    {
+    public:
+        ObjectGuid guid;
+        bool known = false;
+
+        explicit TaxiNodeStatus() : ServerPacket(SMSG_TAXINODE_STATUS) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
+    class NewTaxiPath final : public ServerPacket
+    {
+    public:
+        explicit NewTaxiPath() : ServerPacket(SMSG_NEW_TAXI_PATH) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
+    class ActivateTaxiReply final : public ServerPacket
+    {
+    public:
+        uint32 replyCode = 0; // TaxiError enum value
+
+        explicit ActivateTaxiReply() : ServerPacket(SMSG_ACTIVATETAXIREPLY) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
+    class ShowTaxiNodes final : public ServerPacket
+    {
+    public:
+        ObjectGuid flightmasterGuid;
+        uint32 currentNode = 0;
+        uint32 knownNodesMask[8] = {};
+
+        ShowTaxiNodes() : ServerPacket(SMSG_SHOWTAXINODES) {}
+        size_t EstimateFinalSize() const override;
+        void AppendBodyTo(ByteBuffer& buffer) const override;
+    };
+
 }} // namespace WorldPackets::Taxi
 
 #endif // MANGOS_PACKETS_TAXI_H
